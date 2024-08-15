@@ -5,14 +5,14 @@ from typing import ClassVar, NamedTuple
 
 class Event:
     ev: ClassVar[int]
-    data: bytes
+    data: bytes = b""
 
     def __init__(self, data) -> None:
         self.data = data
 
     def __repr__(self) -> str:
-        return f"""{self.__class__.__name__}({', '.join(
-                '{k}={v}'.format(k=k, v=v)
+        return f"""{self.__class__.__name__}(0x{self.ev:02x}:{self.data.hex()[:16]} {', '.join(
+                f'{k}={len(v) if isinstance(v,list) else v}'
                 for k, v in self.__dict__.items()
                 if not (k == 'data' or k.startswith('__')))})"""
 
@@ -25,10 +25,15 @@ class EventPc80bTime(Event):
     ev = 0x33  # Not sure. It should be time?
 
 
+class EventPc80bOff(Event):
+    ev = 0xAA
+
+
 class EventPc80bFastData(Event):
     ev = 0xDD
 
     def __init__(self, data: bytes) -> None:
+        super().__init__(data)
         self.seqNo, xgain, cmsh, self.hr, ldt = unpack("<HBBBB", data[:6])
         #    0, 1    2      3         4    5
         self.gain = (xgain & 0x70) >> 4  # three bits
@@ -74,4 +79,4 @@ CLASSES = {
 def mkEv(ev, data):
     if ev in CLASSES:
         return CLASSES[ev](data)
-    return f"{ev:02x} - {data.hex()}"
+    return f"EventPc80b???(0x{ev:02x}:{data.hex()} )"
