@@ -5,7 +5,7 @@ from struct import pack, unpack
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
-from datatypes import mkEv, EventPc80bOff
+from datatypes import mkEv, EventPc80bEOR, EventPc80bReady
 
 DELAY = 2
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
@@ -20,7 +20,7 @@ crc8 = predefined.mkCrcFun("crc-8-maxim")
 stop = asyncio.Event()
 
 
-def frame_receiver(char, val):
+async def frame_receiver(char, val):
     char.buffer += val
     while len(char.buffer) > char.length:
         if len(char.buffer) < 3:
@@ -38,12 +38,21 @@ def frame_receiver(char, val):
         crc = int.from_bytes(frame[-1:])
         if crc != crc8(data):
             print("CRC MISMATCH", data.hex(), crc)
-        st, ev = unpack("BB", data[:2])
+        st, evt = unpack("BB", data[:2])
         if st != 0xA5:
             print("BAD START", data.hex())
-        ev = mkEv(ev, data[3:])
+        ev = mkEv(evt, data[3:])
         print(ev)
-        if ev is EventPc80bOff:
+        if isinstance(ev, EventPc80bReady):
+            print("Sending ACK")
+            # initframe = bytes.fromhex("a51106000000000000")
+            runcont = bytes.fromhex("a5550100")
+            initcrc = pack("B", crc8(runcont))
+            print("SENDING:", runcont.hex(), initcrc.hex())
+            await char.clientref.write_gatt_char(
+                PC80B_OUT, runcont + initcrc, response=True
+            )
+        elif isinstance(ev, EventPc80bEOR):
             print("Device switched off")
             stop.set()
 
@@ -54,7 +63,7 @@ async def main():
         async for dev, data in scanner.advertisement_data():
             # print(dev, "\n", data, "\n")
             if dev.name == "PC80B-BLE":
-            # if PC80B_SRV in data.service_uuids:
+                # if PC80B_SRV in data.service_uuids:
                 break
     print("Trying to use device", dev, "rssi", data.rssi, "wait", DELAY, "sec")
     await asyncio.sleep(DELAY)
@@ -87,12 +96,16 @@ async def main():
         ntf.length = 0
         ntf.buffer = b""
         ntf.received = asyncio.Event()
+        ntf.clientref = client
         await client.start_notify(ntf, frame_receiver)
-        await ntf.received.wait()
-        initframe = bytes.fromhex("a51103000000")
-        initcrc = pack("B", crc8(initframe))
-        # print("SENDING:", initframe.hex(), initcrc.hex())
-        # await client.write_gatt_char(ctl, initframe + initcrc)
+        devinfo = bytes.fromhex("5a1106000000000000")
+        crc = pack("B", crc8(devinfo))
+        print("SENDING:", devinfo.hex(), crc.hex())
+        await client.write_gatt_char(
+            PC80B_OUT, devinfo + crc
+        )
+        ctlval = await client.read_gatt_char(PC80B_CTL)
+        print("READ:", ctlval.hex())
         await stop.wait()
 
         print("Disconnecting")
