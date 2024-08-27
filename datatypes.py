@@ -68,8 +68,11 @@ class EventPc80bReady(Event):
         self.serialno = data[2:].hex()
 
 
-class EventPc80bEOR(Event):
+class EventPc80bContData(Event):
     ev = 0xAA
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(0x{self.ev:02x}:{self.data.hex()}"
 
 
 class EventPc80bFastData(Event):
