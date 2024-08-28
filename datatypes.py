@@ -71,8 +71,28 @@ class EventPc80bReady(Event):
 class EventPc80bContData(Event):
     ev = 0xAA
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(0x{self.ev:02x}:{self.data.hex()}"
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.seqNo = data[0]
+        if len(data) == 1:
+            self.fin = True
+            return
+        self.fin = False
+        try:
+            bv, self.hr, vl, lgv = unpack("<50sBBB", data[1:])
+        except error:
+            print("LEN", len(data), "DATA", data.hex())
+            return
+        self.leadoff = bool(lgv >> 7)
+        self.gain = (lgv & 0x70) >> 4
+        self.vol = ((lgv & 0x0f) << 8) + vl  # in 1/1000th
+        try:
+            self.ecgFloats = [
+                (unpack("<H", bv[i : i + 2])[0] - 2048) / 330
+                for i in range(0, len(bv), 2)
+            ]
+        except error:
+            self.ecgFloats = []
 
 
 class EventPc80bFastData(Event):

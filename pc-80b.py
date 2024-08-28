@@ -5,7 +5,7 @@ from struct import pack, unpack
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
-from datatypes import mkEv, EventPc80bReady
+from datatypes import mkEv, EventPc80bContData, EventPc80bReady
 
 DELAY = 2
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
@@ -45,13 +45,21 @@ async def frame_receiver(char, val):
         print(ev)
         if isinstance(ev, EventPc80bReady):
             print("Sending ACK")
-            # initframe = bytes.fromhex("a51106000000000000")
             runcont = bytes.fromhex("a5550100")
             crc = pack("B", crc8(runcont))
             print("SENDING:", runcont.hex(), crc.hex())
             await char.clientref.write_gatt_char(
                 PC80B_OUT, runcont + crc, response=True
             )
+        elif isinstance(ev, EventPc80bContData) and ev.fin:
+            print("Data FIN, Sending ACK")
+            cdack =  bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
+            crc = pack("B", crc8(cdack))
+            print("SENDING:", cdack.hex(), crc.hex())
+            await char.clientref.write_gatt_char(
+                PC80B_OUT, cdack + crc, response=True
+            )
+            stop.set()
 
 
 async def main():
@@ -95,16 +103,10 @@ async def main():
         ntf.received = asyncio.Event()
         ntf.clientref = client
         await client.start_notify(ntf, frame_receiver)
-        # ready = bytes.fromhex("5a550100")
-        # crc = pack("B", crc8(ready))
-        # print("SENDING:", ready.hex(), crc.hex())
-        # await client.write_gatt_char(PC80B_OUT, ready + crc)
-        devinfo = bytes.fromhex("5a1106000000000000")
-        crc = pack("B", crc8(devinfo))
-        print("SENDING:", devinfo.hex(), crc.hex())
-        await client.write_gatt_char(PC80B_OUT, devinfo + crc)
-        ctlval = await client.read_gatt_char(PC80B_CTL)
-        print("READ:", ctlval.hex())
+        #devinfo = bytes.fromhex("5a1106000000000000")
+        #crc = pack("B", crc8(devinfo))
+        #print("SENDING:", devinfo.hex(), crc.hex())
+        #await client.write_gatt_char(PC80B_OUT, devinfo + crc)
         await stop.wait()
 
         print("Disconnecting")
