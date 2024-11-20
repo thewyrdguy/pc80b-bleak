@@ -1,5 +1,6 @@
 from inspect import isclass
 from struct import error, unpack
+from datetime import datetime
 from typing import ClassVar, NamedTuple
 
 
@@ -45,6 +46,9 @@ class EventPc80bTime(Event):
         self.sc, self.mn, self.hr, self.dy, self.mo, self.yr, self.z = unpack(
             "<BBBBBHB", data[:8]
         )
+        self.datetime = datetime(
+            self.yr, self.mo, self.dy, self.hr, self.mn, self.sc
+        )
 
     def __repr__(self) -> str:
         return (
@@ -54,7 +58,7 @@ class EventPc80bTime(Event):
         )
 
 
-class EventPc80bReady(Event):
+class EventPc80bTransmode(Event):
     ev = 0x55  # end of preparation, need response
 
     def __init__(self, data: bytes) -> None:
@@ -85,7 +89,7 @@ class EventPc80bContData(Event):
             return
         self.leadoff = bool(lgv >> 7)
         self.gain = (lgv & 0x70) >> 4
-        self.vol = ((lgv & 0x0f) << 8) + vl  # in 1/1000th
+        self.vol = ((lgv & 0x0F) << 8) + vl  # in 1/1000th
         try:
             self.ecgFloats = [
                 (unpack("<H", bv[i : i + 2])[0] - 2048) / 330
