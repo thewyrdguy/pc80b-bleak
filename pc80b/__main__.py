@@ -5,7 +5,13 @@ from struct import pack, unpack
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
-from .datatypes import mkEv, EventPc80bContData, EventPc80bReady
+from .datatypes import (
+    mkEv,
+    EventPc80bContData,
+    EventPc80bFastData,
+    EventPc80bTransmode,
+    EventPc80bTime,
+)
 
 DELAY = 2
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
@@ -19,8 +25,13 @@ crc8 = predefined.mkCrcFun("crc-8-maxim")
 
 stop = asyncio.Event()
 
+timestamp = 0.0
+outstream = None
+
 
 async def frame_receiver(char, val):
+    global timestamp
+
     char.buffer += val
     while len(char.buffer) > char.length:
         if len(char.buffer) < 3:
@@ -43,23 +54,37 @@ async def frame_receiver(char, val):
             print("BAD START", data.hex())
         ev = mkEv(evt, data[3:])
         print(ev)
-        if isinstance(ev, EventPc80bReady):
+        if isinstance(ev, EventPc80bTime):
+            timestamp = ev.datetime.timestamp()
+        elif isinstance(ev, EventPc80bTransmode):
             print("Sending ACK")
-            runcont = bytes.fromhex("a5550100")
+            runcont = bytes.fromhex("a55501") + pack(
+                "B", 0x01 if ev.transtype else 0x00
+            )
             crc = pack("B", crc8(runcont))
             print("SENDING:", runcont.hex(), crc.hex())
             await char.clientref.write_gatt_char(
                 PC80B_OUT, runcont + crc, response=True
             )
-        elif isinstance(ev, EventPc80bContData) and ev.fin:
-            print("Data FIN, Sending ACK")
-            cdack =  bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
-            crc = pack("B", crc8(cdack))
-            print("SENDING:", cdack.hex(), crc.hex())
-            await char.clientref.write_gatt_char(
-                PC80B_OUT, cdack + crc, response=True
-            )
-            stop.set()
+        elif isinstance(ev, EventPc80bContData):
+            if ev.fin or (ev.seqNo % 64 == 0):
+                print("Sending ACK")
+                cdack = bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
+                crc = pack("B", crc8(cdack))
+                print("SENDING:", cdack.hex(), crc.hex())
+                await char.clientref.write_gatt_char(
+                    PC80B_OUT, cdack + crc, response=True
+                )
+            if ev.fin:
+                stop.set()
+            else:
+                for sample in ev.ecgFloats:
+                    print(timestamp, sample, 0, 0, file=outstream)
+                    timestamp += 0.006666666666666667
+        elif isinstance(ev, EventPc80bFastData):
+            for sample in ev.ecgFloats:
+                print(timestamp, sample, 0, 0, file=outstream)
+                timestamp += 0.006666666666666667
 
 
 async def main():
@@ -103,17 +128,19 @@ async def main():
         ntf.received = asyncio.Event()
         ntf.clientref = client
         await client.start_notify(ntf, frame_receiver)
-        #devinfo = bytes.fromhex("5a1106000000000000")
-        #crc = pack("B", crc8(devinfo))
-        #print("SENDING:", devinfo.hex(), crc.hex())
-        #await client.write_gatt_char(PC80B_OUT, devinfo + crc)
+        # devinfo = bytes.fromhex("5a1106000000000000")
+        # crc = pack("B", crc8(devinfo))
+        # print("SENDING:", devinfo.hex(), crc.hex())
+        # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
         await stop.wait()
 
+        outstream.close()
         print("Disconnecting")
     print("Disconnected")
 
 
 if __name__ == "__main__":
+    outstream = open("samples.out", "w", encoding="ascii")
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
