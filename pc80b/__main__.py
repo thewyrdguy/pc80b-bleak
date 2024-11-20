@@ -5,7 +5,7 @@ from struct import pack, unpack
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
-from datatypes import mkEv, EventPc80bContData, EventPc80bReady
+from .datatypes import mkEv, EventPc80bContData, EventPc80bReady
 
 DELAY = 2
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
