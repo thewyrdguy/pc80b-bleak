@@ -25,69 +25,75 @@ crc8 = predefined.mkCrcFun("crc-8-maxim")
 
 stop = asyncio.Event()
 
-timestamp = 0.0
-outstream = None
 
+class Receiver:
+    def __init__(self, client, outstream):
+        self.length = 0
+        self.buffer = b""
+        self.received = asyncio.Event()
+        self.clientref = client
+        self.outstream = outstream
+        self.timestamp = 0.0
 
-async def frame_receiver(char, val):
-    global timestamp
-
-    char.buffer += val
-    while len(char.buffer) > char.length:
-        if len(char.buffer) < 3:
-            break
-        (char.length,) = unpack("B", char.buffer[2:3])
-        char.length += 4
-        if len(char.buffer) < char.length:
-            break
-        frame = char.buffer[: char.length]
-        char.buffer = char.buffer[char.length :]
-        char.length = 0
-        char.received.set()
-        # print(len(frame), ":", frame.hex())
-        data = frame[:-1]
-        crc = int.from_bytes(frame[-1:])
-        if crc != crc8(data):
-            print("CRC MISMATCH", data.hex(), crc)
-        st, evt = unpack("BB", data[:2])
-        if st != 0xA5:
-            print("BAD START", data.hex())
-        ev = mkEv(evt, data[3:])
-        print(ev)
-        if isinstance(ev, EventPc80bTime):
-            timestamp = ev.datetime.timestamp()
-        elif isinstance(ev, EventPc80bTransmode):
-            print("Sending ACK")
-            runcont = bytes.fromhex("a55501") + pack(
-                "B", 0x01 if ev.transtype else 0x00
-            )
-            crc = pack("B", crc8(runcont))
-            print("SENDING:", runcont.hex(), crc.hex())
-            await char.clientref.write_gatt_char(
-                PC80B_OUT, runcont + crc, response=True
-            )
-        elif isinstance(ev, EventPc80bContData):
-            if ev.fin or (ev.seqNo % 64 == 0):
+    async def receive(self, char, val):
+        self.buffer += val
+        while len(self.buffer) > self.length:
+            if len(self.buffer) < 3:
+                break
+            (self.length,) = unpack("B", self.buffer[2:3])
+            self.length += 4
+            if len(self.buffer) < self.length:
+                break
+            frame = self.buffer[: self.length]
+            self.buffer = self.buffer[self.length :]
+            self.length = 0
+            self.received.set()
+            # print(len(frame), ":", frame.hex())
+            data = frame[:-1]
+            crc = int.from_bytes(frame[-1:])
+            if crc != crc8(data):
+                print("CRC MISMATCH", data.hex(), crc)
+            st, evt = unpack("BB", data[:2])
+            if st != 0xA5:
+                print("BAD START", data.hex())
+            ev = mkEv(evt, data[3:])
+            print(ev)
+            if isinstance(ev, EventPc80bTime):
+                self.timestamp = ev.datetime.timestamp()
+            elif isinstance(ev, EventPc80bTransmode):
                 print("Sending ACK")
-                cdack = bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
-                crc = pack("B", crc8(cdack))
-                print("SENDING:", cdack.hex(), crc.hex())
-                await char.clientref.write_gatt_char(
-                    PC80B_OUT, cdack + crc, response=True
+                runcont = bytes.fromhex("a55501") + pack(
+                    "B", 0x01 if ev.transtype else 0x00
                 )
-            if ev.fin:
-                stop.set()
-            else:
+                crc = pack("B", crc8(runcont))
+                print("SENDING:", runcont.hex(), crc.hex())
+                await self.clientref.write_gatt_char(
+                    PC80B_OUT, runcont + crc, response=True
+                )
+            elif isinstance(ev, EventPc80bContData):
+                if ev.fin or (ev.seqNo % 64 == 0):
+                    print("Sending ACK")
+                    cdack = (
+                        bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
+                    )
+                    crc = pack("B", crc8(cdack))
+                    print("SENDING:", cdack.hex(), crc.hex())
+                    await self.clientref.write_gatt_char(
+                        PC80B_OUT, cdack + crc, response=True
+                    )
+                if ev.fin:
+                    stop.set()
+                else:
+                    for sample in ev.ecgFloats:
+                        print(self.timestamp, sample, 0, 0, file=outstream)
+                        self.timestamp += 0.006666666666666667
+            elif isinstance(ev, EventPc80bFastData):
                 for sample in ev.ecgFloats:
-                    print(timestamp, sample, 0, 0, file=outstream)
-                    timestamp += 0.006666666666666667
-        elif isinstance(ev, EventPc80bFastData):
-            for sample in ev.ecgFloats:
-                print(timestamp, sample, 0, 0, file=outstream)
-                timestamp += 0.006666666666666667
+                    print(self.timestamp, sample, 0, 0, file=outstream)
+                    self.timestamp += 0.006666666666666667
 
 
-async def main():
+async def main(outstream):
     async with BleakScanner() as scanner:
         print("Waiting for PC80B-BLE device to appear...")
         async for dev, data in scanner.advertisement_data():
@@ -122,12 +128,8 @@ async def main():
             "All controls are in place, ctl value",
             ctlval.hex(),
         )
-
-        ntf.length = 0
-        ntf.buffer = b""
-        ntf.received = asyncio.Event()
-        ntf.clientref = client
-        await client.start_notify(ntf, frame_receiver)
+        receiver = Receiver(client, outstream)
+        await client.start_notify(ntf, receiver.receive)
         # devinfo = bytes.fromhex("5a1106000000000000")
         # crc = pack("B", crc8(devinfo))
         # print("SENDING:", devinfo.hex(), crc.hex())
@@ -139,10 +141,15 @@ async def main():
     print("Disconnected")
 
 
+async def shutdown(outstream):
+    print("Shutdown")
+    outstream.close()
+
+
 if __name__ == "__main__":
     outstream = open("samples.out", "w", encoding="ascii")
     try:
-        asyncio.run(main())
+        asyncio.run(main(outstream))
     except KeyboardInterrupt:
-        stop.set()
+        asyncio.run(shutdown(outstream))
         print("Exit")
