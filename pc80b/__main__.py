@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 
 import asyncio
+from getopt import getopt
+from os import mknod, unlink
+from stat import S_IFIFO
+from sys import argv
 from struct import pack, unpack
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
@@ -85,11 +89,15 @@ class Receiver:
                     stop.set()
                 else:
                     for sample in ev.ecgFloats:
-                        print(self.timestamp, sample, 0, 0, file=outstream)
+                        outstream.write(
+                            f"{self.timestamp} {sample} 0 0\n".encode("ascii")
+                        )
                         self.timestamp += 0.006666666666666667
             elif isinstance(ev, EventPc80bFastData):
                 for sample in ev.ecgFloats:
-                    print(self.timestamp, sample, 0, 0, file=outstream)
+                    outstream.write(
+                        f"{self.timestamp} {sample} 0 0\n".encode("ascii")
+                    )
                     self.timestamp += 0.006666666666666667
 
 
@@ -147,7 +155,18 @@ async def shutdown(outstream):
 
 
 if __name__ == "__main__":
-    outstream = open("samples.out", "w", encoding="ascii")
+    topts, args = getopt(argv[1:], "hva:")
+    opts = dict(topts)
+    sockname = args[0] if len(args) >= 1 else "/tmp/pc80b.sock"
+    #try:
+    #    unlink(sockname)
+    #except FileNotFoundError:
+    #    pass
+    try:
+        mknod(sockname, S_IFIFO | 0o644)
+    except FileExistsError:
+        pass
+    outstream = open(sockname, "wb", buffering=0)
     try:
         asyncio.run(main(outstream))
     except KeyboardInterrupt:
