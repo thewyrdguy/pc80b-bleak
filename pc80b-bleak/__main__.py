@@ -2,9 +2,9 @@
 
 import asyncio
 from getopt import getopt
-from os import mknod, unlink
+from os import mknod, unlink, write
 from stat import S_IFIFO
-from sys import argv
+from sys import argv, stderr, stdout
 from struct import pack, unpack
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
@@ -29,14 +29,15 @@ crc8 = predefined.mkCrcFun("crc-8-maxim")
 
 stop = asyncio.Event()
 
+verbose = False
+
 
 class Receiver:
-    def __init__(self, client, outstream):
+    def __init__(self, client):
         self.length = 0
         self.buffer = b""
         self.received = asyncio.Event()
         self.clientref = client
-        self.outstream = outstream
         self.timestamp = 0.0
 
     async def receive(self, char, val):
@@ -52,68 +53,90 @@ class Receiver:
             self.buffer = self.buffer[self.length :]
             self.length = 0
             self.received.set()
-            # print(len(frame), ":", frame.hex())
+            # print(len(frame), ":", frame.hex(), file=stderr)
             data = frame[:-1]
             crc = int.from_bytes(frame[-1:])
             if crc != crc8(data):
-                print("CRC MISMATCH", data.hex(), crc)
+                print("CRC MISMATCH", data.hex(), crc, file=stderr)
             st, evt = unpack("BB", data[:2])
             if st != 0xA5:
-                print("BAD START", data.hex())
+                print("BAD START", data.hex(), file=stderr)
             ev = mkEv(evt, data[3:])
-            print(ev)
+            print(ev, file=stderr)
             if isinstance(ev, EventPc80bTime):
                 self.timestamp = ev.datetime.timestamp()
             elif isinstance(ev, EventPc80bTransmode):
-                print("Sending ACK")
+                print("Sending ACK", file=stderr)
                 runcont = bytes.fromhex("a55501") + pack(
                     "B", 0x01 if ev.transtype else 0x00
                 )
                 crc = pack("B", crc8(runcont))
-                print("SENDING:", runcont.hex(), crc.hex())
+                print("SENDING:", runcont.hex(), crc.hex(), file=stderr)
                 await self.clientref.write_gatt_char(
                     PC80B_OUT, runcont + crc, response=True
                 )
             elif isinstance(ev, EventPc80bContData):
                 if ev.fin or (ev.seqNo % 64 == 0):
-                    print("Sending ACK")
+                    print("Sending ACK", file=stderr)
                     cdack = (
                         bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
                     )
                     crc = pack("B", crc8(cdack))
-                    print("SENDING:", cdack.hex(), crc.hex())
+                    print("SENDING:", cdack.hex(), crc.hex(), file=stderr)
                     await self.clientref.write_gatt_char(
                         PC80B_OUT, cdack + crc, response=True
                     )
                 if ev.fin:
                     stop.set()
                 else:
-                    for sample in ev.ecgFloats:
-                        outstream.write(
-                            f"{self.timestamp} {sample} 0 0\n".encode("ascii")
-                        )
-                        self.timestamp += 0.006666666666666667
-            elif isinstance(ev, EventPc80bFastData):
-                for sample in ev.ecgFloats:
-                    outstream.write(
-                        f"{self.timestamp} {sample} 0 0\n".encode("ascii")
+                    write(
+                        stdout.fileno(),
+                        "".join(
+                            (
+                                f"{self.timestamp} {sample} 0 0\n"
+                                for sample in ev.ecgFloats
+                            )
+                        ).encode("ascii"),
                     )
-                    self.timestamp += 0.006666666666666667
+                    self.timestamp += 0.16666666666666666
+            elif isinstance(ev, EventPc80bFastData):
+                if ev.fin:
+                    stop.set()
+                else:
+                    write(
+                        stdout.fileno(),
+                        "".join(
+                            (
+                                f"{self.timestamp} {sample} 0 0\n"
+                                for sample in ev.ecgFloats
+                            )
+                        ).encode("ascii"),
+                    )
+                    self.timestamp += 0.16666666666666666
 
 
-async def main(outstream):
+async def main(opts, args):
     async with BleakScanner() as scanner:
-        print("Waiting for PC80B-BLE device to appear...")
+        print("Waiting for PC80B-BLE device to appear...", file=stderr)
         async for dev, data in scanner.advertisement_data():
-            # print(dev, "\n", data, "\n")
+            # print(dev, "\n", data, "\n", file=stderr)
             if dev.name == "PC80B-BLE":
                 # if PC80B_SRV in data.service_uuids:
                 break
-    print("Trying to use device", dev, "rssi", data.rssi, "wait", DELAY, "sec")
+    print(
+        "Trying to use device",
+        dev,
+        "rssi",
+        data.rssi,
+        "wait",
+        DELAY,
+        "sec",
+        file=stderr,
+    )
     await asyncio.sleep(DELAY)
     async with BleakClient(dev) as client:
         srvd = {srv.uuid: srv for srv in client.services}
-        # print("srvd", srvd)
+        # print("srvd", srvd, file=stderr)
         print(
             "Connected;",
             ", ".join(
@@ -123,52 +146,43 @@ async def main(outstream):
                     for char in srvd[DEVINFO].characteristics
                 ]
             ),
+            file=stderr,
         )
         chrd = {char.uuid: char for char in srvd[PC80B_SRV].characteristics}
-        # print("chrd", chrd)
+        # print("chrd", chrd, file=stderr)
         ctlval = await client.read_gatt_char(PC80B_CTL)
-        # print("ctlval", ctlval.hex())
+        # print("ctlval", ctlval.hex(), file=stderr)
         ntf = chrd[PC80B_NTF]
         dscd = {descriptor.uuid: descriptor for descriptor in ntf.descriptors}
         ntdval = await client.read_gatt_descriptor(dscd[PC80B_NTD].handle)
-        # print("ntdval", ntdval.hex())
+        # print("ntdval", ntdval.hex(), file=stderr)
         print(
             "All controls are in place, ctl value",
             ctlval.hex(),
+            file=stderr,
         )
-        receiver = Receiver(client, outstream)
+        receiver = Receiver(client)
         await client.start_notify(ntf, receiver.receive)
         # devinfo = bytes.fromhex("5a1106000000000000")
         # crc = pack("B", crc8(devinfo))
-        # print("SENDING:", devinfo.hex(), crc.hex())
+        # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
         # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
         await stop.wait()
 
-        outstream.close()
-        print("Disconnecting")
-    print("Disconnected")
+        print("Disconnecting", file=stderr)
+    print("Disconnected", file=stderr)
 
 
-async def shutdown(outstream):
-    print("Shutdown")
-    outstream.close()
+async def shutdown():
+    print("Shutdown", file=stderr)
 
 
 if __name__ == "__main__":
     topts, args = getopt(argv[1:], "hva:")
     opts = dict(topts)
-    sockname = args[0] if len(args) >= 1 else "/tmp/pc80b.sock"
-    #try:
-    #    unlink(sockname)
-    #except FileNotFoundError:
-    #    pass
+    verbose = "-v" in opts
     try:
-        mknod(sockname, S_IFIFO | 0o644)
-    except FileExistsError:
-        pass
-    outstream = open(sockname, "wb", buffering=0)
-    try:
-        asyncio.run(main(outstream))
+        asyncio.run(main(opts, args))
     except KeyboardInterrupt:
-        asyncio.run(shutdown(outstream))
-        print("Exit")
+        asyncio.run(shutdown())
+        print("Exit", file=stderr)

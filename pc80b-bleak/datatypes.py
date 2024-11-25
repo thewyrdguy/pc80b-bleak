@@ -85,7 +85,7 @@ class EventPc80bContData(Event):
         try:
             bv, self.hr, vl, lgv = unpack("<50sBBB", data[1:])
         except error:
-            print("LEN", len(data), "DATA", data.hex())
+            print("LEN", len(data), "DATA", data.hex(), file=stderr)
             return
         self.leadoff = bool(lgv >> 7)
         self.gain = (lgv & 0x70) >> 4
@@ -104,6 +104,7 @@ class EventPc80bFastData(Event):
 
     def __init__(self, data: bytes) -> None:
         super().__init__(data)
+        self.fin = False
         self.seqNo, xgain, cmsh, self.hr, ldt = unpack("<HBBBB", data[:6])
         #    0, 1    2      3         4    5
         self.gain = (xgain & 0x70) >> 4  # three bits
@@ -125,14 +126,18 @@ class EventPc80bFastData(Event):
         )  # four bits
         self.leadoff = bool(ldt >> 7)
         self.datatype = ldt & 0x07  # three bits
-        bv = data[6:]
-        try:
-            self.ecgFloats = [
-                (unpack("<H", bv[i : i + 2])[0] - 2048) / 330
-                for i in range(0, len(bv), 2)
-            ]
-        except error:
+        if self.mstage in ("analyzing", "result", "stop"):
+            self.fin = True
             self.ecgFloats = []
+        else:
+            bv = data[6:]
+            try:
+                self.ecgFloats = [
+                    (unpack("<H", bv[i : i + 2])[0] - 2048) / 330
+                    for i in range(0, len(bv), 2)
+                ]
+            except error:
+                self.ecgFloats = []
 
 
 class EventPc80bHeartbeat(Event):
