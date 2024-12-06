@@ -101,7 +101,6 @@ class GUI:
 
 if __name__ == "__main__":
     Gst.init()
-    Gtk.init()
     app = Gtk.Application()
     app.connect('activate', GUI)
     try:
