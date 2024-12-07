@@ -27,7 +27,7 @@ PC80B_NTD = "00002902-0000-1000-8000-00805f9b34fb"
 
 crc8 = predefined.mkCrcFun("crc-8-maxim")
 
-stop = asyncio.Event()
+disconnect = asyncio.Event()
 
 verbose = False
 
@@ -86,95 +86,97 @@ class Receiver:
                     await self.clientref.write_gatt_char(
                         PC80B_OUT, cdack + crc, response=True
                     )
-                if ev.fin:
-                    stop.set()
-                else:
-                    write(
-                        stdout.fileno(),
-                        "".join(
-                            (
-                                f"{self.timestamp} {sample} 0 0\n"
-                                for sample in ev.ecgFloats
-                            )
-                        ).encode("ascii"),
-                    )
-                    self.timestamp += 0.16666666666666666
+                write(
+                    stdout.fileno(),
+                    "".join(
+                        (
+                            f"{self.timestamp} {sample} 0 0\n"
+                            for sample in ev.ecgFloats
+                        )
+                    ).encode("ascii"),
+                )
+                self.timestamp += 0.16666666666666666
             elif isinstance(ev, EventPc80bFastData):
-                if ev.fin:
-                    stop.set()
-                else:
-                    write(
-                        stdout.fileno(),
-                        "".join(
-                            (
-                                f"{self.timestamp} {sample} 0 0\n"
-                                for sample in ev.ecgFloats
-                            )
-                        ).encode("ascii"),
-                    )
-                    self.timestamp += 0.16666666666666666
+                write(
+                    stdout.fileno(),
+                    "".join(
+                        (
+                            f"{self.timestamp} {sample} 0 0\n"
+                            for sample in ev.ecgFloats
+                        )
+                    ).encode("ascii"),
+                )
+                self.timestamp += 0.16666666666666666
 
 
-async def main(opts, args):
-    async with BleakScanner() as scanner:
-        print("Waiting for PC80B-BLE device to appear...", file=stderr)
-        async for dev, data in scanner.advertisement_data():
-            # print(dev, "\n", data, "\n", file=stderr)
-            if dev.name == "PC80B-BLE":
-                # if PC80B_SRV in data.service_uuids:
-                break
-    print(
-        "Trying to use device",
-        dev,
-        "rssi",
-        data.rssi,
-        "wait",
-        DELAY,
-        "sec",
-        file=stderr,
-    )
-    await asyncio.sleep(DELAY)
-    async with BleakClient(dev) as client:
-        srvd = {srv.uuid: srv for srv in client.services}
-        # print("srvd", srvd, file=stderr)
+def on_disconnect(client):
+    disconnect.set()
+
+
+async def scanner():
+    while True:
+        async with BleakScanner() as scanner:
+            print("Waiting for PC80B-BLE device to appear...", file=stderr)
+            async for dev, data in scanner.advertisement_data():
+                # print(dev, "\n", data, "\n", file=stderr)
+                if dev.name == "PC80B-BLE":
+                    # if PC80B_SRV in data.service_uuids:
+                    break
         print(
-            "Connected;",
-            ", ".join(
-                [
-                    f"{char.description.split()[0]}: "
-                    f"{(await client.read_gatt_char(char)).decode('ascii')}"
-                    for char in srvd[DEVINFO].characteristics
-                ]
-            ),
+            "Trying to use device",
+            dev,
+            "rssi",
+            data.rssi,
+            "wait",
+            DELAY,
+            "sec",
             file=stderr,
         )
-        chrd = {char.uuid: char for char in srvd[PC80B_SRV].characteristics}
-        # print("chrd", chrd, file=stderr)
-        ctlval = await client.read_gatt_char(PC80B_CTL)
-        # print("ctlval", ctlval.hex(), file=stderr)
-        ntf = chrd[PC80B_NTF]
-        dscd = {descriptor.uuid: descriptor for descriptor in ntf.descriptors}
-        ntdval = await client.read_gatt_descriptor(dscd[PC80B_NTD].handle)
-        # print("ntdval", ntdval.hex(), file=stderr)
-        print(
-            "All controls are in place, ctl value",
-            ctlval.hex(),
-            file=stderr,
-        )
-        receiver = Receiver(client)
-        await client.start_notify(ntf, receiver.receive)
-        # devinfo = bytes.fromhex("5a1106000000000000")
-        # crc = pack("B", crc8(devinfo))
-        # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
-        # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
-        await stop.wait()
+        await asyncio.sleep(DELAY)
+        async with BleakClient(
+            dev, disconnected_callback=on_disconnect
+        ) as client:
+            srvd = {srv.uuid: srv for srv in client.services}
+            # print("srvd", srvd, file=stderr)
+            print(
+                "Connected;",
+                ", ".join(
+                    [
+                        f"{char.description.split()[0]}: "
+                        f"{(await client.read_gatt_char(char)).decode('ascii')}"
+                        for char in srvd[DEVINFO].characteristics
+                    ]
+                ),
+                file=stderr,
+            )
+            chrd = {
+                char.uuid: char for char in srvd[PC80B_SRV].characteristics
+            }
+            # print("chrd", chrd, file=stderr)
+            ctlval = await client.read_gatt_char(PC80B_CTL)
+            # print("ctlval", ctlval.hex(), file=stderr)
+            ntf = chrd[PC80B_NTF]
+            dscd = {
+                descriptor.uuid: descriptor for descriptor in ntf.descriptors
+            }
+            ntdval = await client.read_gatt_descriptor(dscd[PC80B_NTD].handle)
+            # print("ntdval", ntdval.hex(), file=stderr)
+            print(
+                "All controls are in place, ctl value",
+                ctlval.hex(),
+                file=stderr,
+            )
+            receiver = Receiver(client)
+            await client.start_notify(ntf, receiver.receive)
+            # devinfo = bytes.fromhex("5a1106000000000000")
+            # crc = pack("B", crc8(devinfo))
+            # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
+            # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
+            await disconnect.wait()
+            disconnect.clear()
 
-        print("Disconnecting", file=stderr)
-    print("Disconnected", file=stderr)
-
-
-async def shutdown():
-    print("Shutdown", file=stderr)
+            print("Disconnecting", file=stderr)
+        print("Disconnected", file=stderr)
 
 
 if __name__ == "__main__":
@@ -182,7 +184,6 @@ if __name__ == "__main__":
     opts = dict(topts)
     verbose = "-v" in opts
     try:
-        asyncio.run(main(opts, args))
+        asyncio.run(scanner())
     except KeyboardInterrupt:
-        asyncio.run(shutdown())
         print("Exit", file=stderr)
