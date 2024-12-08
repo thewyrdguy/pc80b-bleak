@@ -6,8 +6,11 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gst", "1.0")
 from gi.repository import GLib, Gst, Gtk
 
+CRT_W = 720
+CRT_H = 480
+
 CAPS = (
-    "video/x-raw,format=RGBA,bpp=32,depth=32,width=1080,height=720"
+    f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
     ",red_mask=-16777216,green_mask=16711680,blue_mask=65280"
     ",alpha_mask=255,endianness=4321,framerate=1/30"
 )
@@ -39,17 +42,22 @@ class GUI:
 
         src.connect("need-data", self.on_need_data)
 
+        picture = Gtk.Picture.new()
+        picture.set_paintable(paintable)
+        frame = Gtk.Frame()
+        frame.set_child(picture)
+        crt = Gtk.Box()
+        crt.set_size_request(CRT_W, CRT_H)
+        crt.append(frame)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        label = Gtk.Label.new("Top Label")
+        vbox.append(label)
+        vbox.append(crt)
+
         self.window = Gtk.ApplicationWindow(application=app)
         self.window.set_default_size(1080, 720)
         self.window.set_title("pc80b-ble")
-
-        picture = Gtk.Picture.new()
-        picture.set_paintable(paintable)
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        vbox.append(picture)
-        label = Gtk.Label.new("Bottom Label")
-        vbox.append(label)
-
         self.window.set_child(vbox)
         self.window.present()
 
@@ -72,10 +80,10 @@ class GUI:
         print("ERROR", error)
 
     def on_need_data(self, source, amount):
-        with cairo.ImageSurface(cairo.FORMAT_ARGB32, 1080, 720) as image:
+        with cairo.ImageSurface(cairo.FORMAT_ARGB32, CRT_W, CRT_H) as image:
             context = cairo.Context(image)
             context.set_source_rgba(0.5, 0.0, 0.0, 1.0)
-            context.rectangle(0, 0, 1080, 720)
+            context.rectangle(0, 0, CRT_W, CRT_H)
             context.fill()
             context.select_font_face(
                 "sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD
@@ -83,7 +91,7 @@ class GUI:
             context.set_font_size(48)
             text = "Hello World!  " + str(self.counter)
             (x, y, w, h, dx, dy) = context.text_extents(text)
-            context.move_to((1080 - w) / 2.0, (720 - h) / 2.0)
+            context.move_to((CRT_W - w) / 2.0, (CRT_H - h) / 2.0)
             context.set_source_rgba(1.0, 1.0, 1.0, 1.0)
             context.show_text(text)
             # Gst.Buffer.add_reference_timestamp_meta(
