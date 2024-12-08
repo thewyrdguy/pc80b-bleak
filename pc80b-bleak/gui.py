@@ -55,8 +55,8 @@ class GUI:
         vbox.append(crt)
 
         self.window = Gtk.ApplicationWindow(application=app)
-        self.window.set_default_size(1080, 720)
-        self.window.set_title("pc80b-ble")
+        # self.window.set_default_size(1080, 720)
+        self.window.set_title("pc80b-bleak")
         self.window.set_child(vbox)
         self.window.present()
 
@@ -104,6 +104,9 @@ class GUI:
 
     def report_ble(self, sts):
         self.label.set_text(sts)
+
+    def report_ecg(self, msg):
+        print("report_ecg", msg)
 
 
 if __name__ == "__main__":

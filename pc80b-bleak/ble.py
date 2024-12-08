@@ -38,7 +38,7 @@ class Receiver:
         self.buffer = b""
         self.received = asyncio.Event()
         self.clientref = client
-        self.timestamp = 0.0
+        self.gui = gui
 
     async def receive(self, char, val):
         self.buffer += val
@@ -62,10 +62,8 @@ class Receiver:
             if st != 0xA5:
                 print("BAD START", data.hex(), file=stderr)
             ev = mkEv(evt, data[3:])
-            print(ev, file=stderr)
-            if isinstance(ev, EventPc80bTime):
-                self.timestamp = ev.datetime.timestamp()
-            elif isinstance(ev, EventPc80bTransmode):
+            self.gui.report_ecg(ev)
+            if isinstance(ev, EventPc80bTransmode):
                 print("Sending ACK", file=stderr)
                 runcont = bytes.fromhex("a55501") + pack(
                     "B", 0x01 if ev.transtype else 0x00
@@ -86,27 +84,6 @@ class Receiver:
                     await self.clientref.write_gatt_char(
                         PC80B_OUT, cdack + crc, response=True
                     )
-                write(
-                    stdout.fileno(),
-                    "".join(
-                        (
-                            f"{self.timestamp} {sample} 0 0\n"
-                            for sample in ev.ecgFloats
-                        )
-                    ).encode("ascii"),
-                )
-                self.timestamp += 0.16666666666666666
-            elif isinstance(ev, EventPc80bFastData):
-                write(
-                    stdout.fileno(),
-                    "".join(
-                        (
-                            f"{self.timestamp} {sample} 0 0\n"
-                            for sample in ev.ecgFloats
-                        )
-                    ).encode("ascii"),
-                )
-                self.timestamp += 0.16666666666666666
 
 
 def on_disconnect(client):
