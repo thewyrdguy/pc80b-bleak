@@ -15,6 +15,7 @@ CAPS = (
     ",alpha_mask=255,endianness=4321,framerate=1/30"
 )
 
+
 class GUI:
     def activate(self, app: Gtk.Application) -> None:
         self.app = app
@@ -24,22 +25,41 @@ class GUI:
         bus.connect("message::eos", self.on_eos)
         bus.connect("message::error", self.on_error)
 
-        gtksink = Gst.ElementFactory.make('gtk4paintablesink', None)
-        paintable = gtksink.get_property('paintable')
+        gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
+        paintable = gtksink.get_property("paintable")
         if not paintable.props.gl_context:
             raise RuntimeError("Refusing to run without OpenGL")
-        sink = Gst.ElementFactory.make('glsinkbin', None)
-        sink.set_property('sink', gtksink)
+        sink = Gst.ElementFactory.make("glsinkbin", None)
+        sink.set_property("sink", gtksink)
 
-        src = Gst.ElementFactory.make('appsrc', None)
+        src = Gst.ElementFactory.make("appsrc", None)
         src.set_property("format", Gst.Format.TIME)
 
         self.pipeline.add(src)
         self.pipeline.add(sink)
 
         src.link_filtered(sink, Gst.Caps.from_string(CAPS))
+        sink.set_property("sync", True)
 
         src.connect("need-data", self.on_need_data)
+
+        self.pipeline.add(
+            asrc := Gst.ElementFactory.make("autoaudiosrc", None)
+        )
+        self.pipeline.add(
+            acnv := Gst.ElementFactory.make("audioconvert", None)
+        )
+        self.pipeline.add(alvl := Gst.ElementFactory.make("level", None))
+        self.pipeline.add(asnk := Gst.ElementFactory.make("fakesink", None))
+        asrc.link(acnv)
+        acnv.link_filtered(
+            alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
+        )
+        alvl.link(asnk)
+        # alvl.set_property("post-messages", True)  # default
+        # asnk.set_property("sync", True)
+        bus.add_signal_watch()
+        bus.connect("message::element", self.on_level)
 
         picture = Gtk.Picture.new()
         picture.set_paintable(paintable)
@@ -62,7 +82,7 @@ class GUI:
 
         app.add_window(self.window)
 
-        app.connect('shutdown', self.on_close)
+        app.connect("shutdown", self.on_close)
 
         self.pipeline.set_state(Gst.State.PLAYING)
 
@@ -77,6 +97,13 @@ class GUI:
     def on_error(self, bus, msg):
         error = msg.parse_error()
         print("ERROR", error)
+
+    def on_level(self, bus, msg):
+        s = msg.get_structure()
+        rms = s.get_value("rms")
+        peak = s.get_value("peak")
+        decay = s.get_value("decay")
+        print("LEVEL", rms, peak, decay)
 
     def on_need_data(self, source, amount):
         with cairo.ImageSurface(cairo.FORMAT_ARGB32, CRT_W, CRT_H) as image:
@@ -113,7 +140,7 @@ if __name__ == "__main__":
     Gst.init()
     app = Gtk.Application()
     gui = GUI()
-    app.connect('activate', gui.activate)
+    app.connect("activate", gui.activate)
     try:
         res = app.run()
         print("exit", res)
