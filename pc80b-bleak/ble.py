@@ -33,7 +33,7 @@ verbose = False
 
 
 class Receiver:
-    def __init__(self, client):
+    def __init__(self, client, gui):
         self.length = 0
         self.buffer = b""
         self.received = asyncio.Event()
@@ -113,8 +113,9 @@ def on_disconnect(client):
     disconnect.set()
 
 
-async def scanner():
+async def scanner(gui):
     while True:
+        gui.report_ble(f"Scanning")
         async with BleakScanner() as scanner:
             print("Waiting for PC80B-BLE device to appear...", file=stderr)
             async for dev, data in scanner.advertisement_data():
@@ -122,6 +123,7 @@ async def scanner():
                 if dev.name == "PC80B-BLE":
                     # if PC80B_SRV in data.service_uuids:
                     break
+        gui.report_ble(f"Found {dev}")
         print(
             "Trying to use device",
             dev,
@@ -161,12 +163,13 @@ async def scanner():
             }
             ntdval = await client.read_gatt_descriptor(dscd[PC80B_NTD].handle)
             # print("ntdval", ntdval.hex(), file=stderr)
+            gui.report_ble(f"Connected {dev}")
             print(
                 "All controls are in place, ctl value",
                 ctlval.hex(),
                 file=stderr,
             )
-            receiver = Receiver(client)
+            receiver = Receiver(client, gui)
             await client.start_notify(ntf, receiver.receive)
             # devinfo = bytes.fromhex("5a1106000000000000")
             # crc = pack("B", crc8(devinfo))
@@ -175,6 +178,7 @@ async def scanner():
             await disconnect.wait()
             disconnect.clear()
 
+            gui.report_ble(f"Disconnected")
             print("Disconnecting", file=stderr)
         print("Disconnected", file=stderr)
 

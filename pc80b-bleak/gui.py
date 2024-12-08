@@ -16,9 +16,8 @@ CAPS = (
 )
 
 class GUI:
-    def __init__(self, app: Gtk.Application) -> None:
+    def activate(self, app: Gtk.Application) -> None:
         self.app = app
-        self.counter = 0
 
         self.pipeline = Gst.Pipeline.new()
         bus = self.pipeline.get_bus()
@@ -51,8 +50,8 @@ class GUI:
         crt.append(frame)
 
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        label = Gtk.Label.new("Top Label")
-        vbox.append(label)
+        self.label = Gtk.Label.new("Scanning")
+        vbox.append(self.label)
         vbox.append(crt)
 
         self.window = Gtk.ApplicationWindow(application=app)
@@ -89,7 +88,7 @@ class GUI:
                 "sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD
             )
             context.set_font_size(48)
-            text = "Hello World!  " + str(self.counter)
+            text = "Hello World!"
             (x, y, w, h, dx, dy) = context.text_extents(text)
             context.move_to((CRT_W - w) / 2.0, (CRT_H - h) / 2.0)
             context.set_source_rgba(1.0, 1.0, 1.0, 1.0)
@@ -103,14 +102,15 @@ class GUI:
                 Gst.Buffer.new_wrapped_bytes(GLib.Bytes.new(image.get_data())),
             )
 
-    def push_data(self, i):
-        self.counter = i
+    def report_ble(self, sts):
+        self.label.set_text(sts)
 
 
 if __name__ == "__main__":
     Gst.init()
     app = Gtk.Application()
-    app.connect('activate', GUI)
+    gui = GUI()
+    app.connect('activate', gui.activate)
     try:
         res = app.run()
         print("exit", res)
