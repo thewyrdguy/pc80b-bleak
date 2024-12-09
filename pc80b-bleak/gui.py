@@ -1,68 +1,28 @@
 import gi
 import cairo
+from typing import Any
 
-gi.require_version("GLib", "2.0")
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gst", "1.0")
-from gi.repository import GLib, Gst, Gtk
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gtk
 
 CRT_W = 720
 CRT_H = 480
 
-CAPS = (
-    f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
-    ",red_mask=-16777216,green_mask=16711680,blue_mask=65280"
-    ",alpha_mask=255,endianness=4321,framerate=1/30"
-)
+Gtk.init()
 
 
-class GUI:
-    def activate(self, app: Gtk.Application) -> None:
-        self.app = app
+class AppWindow(Gtk.ApplicationWindow):
+    def __init__(self, pipe, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.pipe = pipe
+        self.pipe.register_on_level_callback(self.on_level)
 
-        self.pipeline = Gst.Pipeline.new()
-        bus = self.pipeline.get_bus()
-        bus.connect("message::eos", self.on_eos)
-        bus.connect("message::error", self.on_error)
-
-        gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
-        paintable = gtksink.get_property("paintable")
-        if not paintable.props.gl_context:
-            raise RuntimeError("Refusing to run without OpenGL")
-        sink = Gst.ElementFactory.make("glsinkbin", None)
-        sink.set_property("sink", gtksink)
-
-        src = Gst.ElementFactory.make("appsrc", None)
-        src.set_property("format", Gst.Format.TIME)
-
-        self.pipeline.add(src)
-        self.pipeline.add(sink)
-
-        src.link_filtered(sink, Gst.Caps.from_string(CAPS))
-        sink.set_property("sync", True)
-
-        src.connect("need-data", self.on_need_data)
-
-        self.pipeline.add(
-            asrc := Gst.ElementFactory.make("autoaudiosrc", None)
-        )
-        self.pipeline.add(
-            acnv := Gst.ElementFactory.make("audioconvert", None)
-        )
-        self.pipeline.add(alvl := Gst.ElementFactory.make("level", None))
-        self.pipeline.add(asnk := Gst.ElementFactory.make("fakesink", None))
-        asrc.link(acnv)
-        acnv.link_filtered(
-            alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
-        )
-        alvl.link(asnk)
-        # alvl.set_property("post-messages", True)  # default
-        # asnk.set_property("sync", True)
-        bus.add_signal_watch()
-        bus.connect("message::element", self.on_level)
+        # self.set_default_size(1080, 720)
+        self.set_title("pc80b-bleak")
 
         picture = Gtk.Picture.new()
-        picture.set_paintable(paintable)
+        picture.set_paintable(pipe.paintable)
         frame = Gtk.Frame()
         frame.set_child(picture)
         crt = Gtk.Box()
@@ -74,75 +34,56 @@ class GUI:
         vbox.append(self.label)
         vbox.append(crt)
 
-        self.window = Gtk.ApplicationWindow(application=app)
-        # self.window.set_default_size(1080, 720)
-        self.window.set_title("pc80b-bleak")
-        self.window.set_child(vbox)
-        self.window.present()
+        self.set_child(vbox)
 
-        app.add_window(self.window)
+    def on_level(self, **kwargs: Any) -> None:
+        pass  # print(self.__class__.__name__, "LEVEL", kwargs)
 
-        app.connect("shutdown", self.on_close)
+    def report_ble(self, state: str) -> None:
+        self.label.set_text(state)
 
-        self.pipeline.set_state(Gst.State.PLAYING)
+
+class App(Adw.Application):
+    def __init__(self, pipe, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pipe = pipe
+        self.win = None
+        self.pending_ble_report = None
+
+        self.connect("activate", self.on_activate)
+        self.connect("shutdown", self.on_close)
+
+    def on_activate(self, app: Adw.Application) -> None:
+        assert app is self
+        self.win = AppWindow(self.pipe, application=app)
+        self.win.present()
+        if self.pending_ble_report is not None:
+            self.win.report_ble(self.pending_ble_report)
+            self.pending_ble_report = None
 
     def on_close(self, _):
-        self.window.close()
-        self.pipeline.set_state(Gst.State.NULL)
+        self.win.close()
+        self.pipe.set_state(None)
 
-    def on_eos(self, bus, msg):
-        print("End of stream")
-        self.app.quit()
+    def report_ecg(self, ev) -> None:
+        self.pipe.report_ecg(ev)
 
-    def on_error(self, bus, msg):
-        error = msg.parse_error()
-        print("ERROR", error)
-
-    def on_level(self, bus, msg):
-        s = msg.get_structure()
-        rms = s.get_value("rms")
-        peak = s.get_value("peak")
-        decay = s.get_value("decay")
-        print("LEVEL", rms, peak, decay)
-
-    def on_need_data(self, source, amount):
-        with cairo.ImageSurface(cairo.FORMAT_ARGB32, CRT_W, CRT_H) as image:
-            context = cairo.Context(image)
-            context.set_source_rgba(0.5, 0.0, 0.0, 1.0)
-            context.rectangle(0, 0, CRT_W, CRT_H)
-            context.fill()
-            context.select_font_face(
-                "sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD
-            )
-            context.set_font_size(48)
-            text = "Hello World!"
-            (x, y, w, h, dx, dy) = context.text_extents(text)
-            context.move_to((CRT_W - w) / 2.0, (CRT_H - h) / 2.0)
-            context.set_source_rgba(1.0, 1.0, 1.0, 1.0)
-            context.show_text(text)
-            # Gst.Buffer.add_reference_timestamp_meta(
-            #   self, reference, timestamp, duration
-            # )
-            # timestamp/x-unix: for timestamps based on the UNIX epoch
-            source.emit(
-                "push-buffer",
-                Gst.Buffer.new_wrapped_bytes(GLib.Bytes.new(image.get_data())),
-            )
-
-    def report_ble(self, sts):
-        self.label.set_text(sts)
-
-    def report_ecg(self, msg):
-        print("report_ecg", msg)
+    def report_ble(self, state: str) -> None:
+        if self.win is not None:
+            self.win.report_ble(state)
+        else:
+            self.pending_ble_report = state
 
 
 if __name__ == "__main__":
-    Gst.init()
-    app = Gtk.Application()
-    gui = GUI()
-    app.connect("activate", gui.activate)
+    import sys
+    from .gst import Pipe
+
+    pipe = Pipe()
+    pipe.set_state(True)
+    app = App(pipe, application_id="wyrd.pc80b-bleak")
     try:
-        res = app.run()
+        res = app.run(sys.argv)
         print("exit", res)
     except KeyboardInterrupt:
         app.quit()
