@@ -17,7 +17,7 @@ from .datatypes import (
     EventPc80bTime,
 )
 
-DELAY = 2
+DELAY = 3
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
 PC80B_SRV = "0000fff0-0000-1000-8000-00805f9b34fb"
 PC80B_OUT = "0000fff2-0000-1000-8000-00805f9b34fb"
@@ -117,17 +117,14 @@ async def scanner(gui):
         ) as client:
             srvd = {srv.uuid: srv for srv in client.services}
             # print("srvd", srvd, file=stderr)
-            print(
-                "Connected;",
-                ", ".join(
-                    [
-                        f"{char.description.split()[0]}: "
-                        f"{(await client.read_gatt_char(char)).decode('ascii')}"
-                        for char in srvd[DEVINFO].characteristics
-                    ]
-                ),
-                file=stderr,
+            details = ", ".join(
+                [
+                    f"{char.description.split()[0]}: "
+                    f"{(await client.read_gatt_char(char)).decode('ascii')}"
+                    for char in srvd[DEVINFO].characteristics
+                ]
             )
+            print("Connected;", details, file=stderr)
             chrd = {
                 char.uuid: char for char in srvd[PC80B_SRV].characteristics
             }
@@ -140,7 +137,7 @@ async def scanner(gui):
             }
             ntdval = await client.read_gatt_descriptor(dscd[PC80B_NTD].handle)
             # print("ntdval", ntdval.hex(), file=stderr)
-            gui.report_ble(f"Connected {dev}")
+            gui.report_ble(f"Connected {dev} {details}")
             print(
                 "All controls are in place, ctl value",
                 ctlval.hex(),
