@@ -17,9 +17,31 @@ class AppWindow(Gtk.ApplicationWindow):
         super().__init__(*args, **kwargs)
         self.pipe = pipe
         self.pipe.register_on_level_callback(self.on_level)
+        self.level_data = {}
 
         # self.set_default_size(1080, 720)
         self.set_title("pc80b-bleak")
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        vbox.append(hbox)
+        self.label = Gtk.Label.new("Scanning")
+        self.label.set_hexpand(True)
+        self.label.set_xalign(0.0)
+        lbframe = Gtk.Frame()
+        lbframe.set_child(self.label)
+        lbbox = Gtk.Box()
+        lbbox.append(lbframe)
+        vbox.append(lbbox)
+        self.set_child(vbox)
+
+        self.monda = Gtk.DrawingArea()
+        self.monda.set_size_request(40, CRT_H)
+        self.monda.set_draw_func(self.draw_mon, None)
+        lframe = Gtk.Frame()
+        lframe.set_child(self.monda)
+        lbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        lbox.append(lframe)
+        hbox.append(lbox)
 
         picture = Gtk.Picture.new()
         picture.set_paintable(pipe.paintable)
@@ -28,16 +50,28 @@ class AppWindow(Gtk.ApplicationWindow):
         crt = Gtk.Box()
         crt.set_size_request(CRT_W, CRT_H)
         crt.append(frame)
+        hbox.append(crt)
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.label = Gtk.Label.new("Scanning")
-        vbox.append(self.label)
-        vbox.append(crt)
+        rbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        hbox.append(rbox)
 
-        self.set_child(vbox)
+    def draw_mon(self, monda, c, w, h, _):
+        maxh = h - 30
+        lvl = round((self.level_data.get("rms", [0.0])[0] + 35) * maxh / 35.0)
+        if lvl < 0:
+            lvl = 0
+        if lvl > maxh:
+            lvl = maxh
+        c.set_source_rgb(0, 0, 0)
+        c.rectangle(10, 10, w - 20, h - 20)
+        c.fill()
+        c.set_source_rgb(0, 1, 0)
+        c.rectangle(15, 15 + maxh - lvl, w - 30, lvl)
+        c.fill()
 
     def on_level(self, **kwargs: Any) -> None:
-        pass  # print(self.__class__.__name__, "LEVEL", kwargs)
+        self.level_data = kwargs
+        self.monda.queue_draw()
 
     def report_ble(self, state: str) -> None:
         self.label.set_text(state)
