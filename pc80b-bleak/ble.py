@@ -87,6 +87,7 @@ class Receiver:
 
 
 def on_disconnect(client):
+    print("Disconnect callback")
     disconnect.set()
 
 
@@ -112,48 +113,53 @@ async def scanner(gui):
             file=stderr,
         )
         await asyncio.sleep(DELAY)
-        async with BleakClient(
-            dev, disconnected_callback=on_disconnect
-        ) as client:
-            srvd = {srv.uuid: srv for srv in client.services}
-            # print("srvd", srvd, file=stderr)
-            details = ", ".join(
-                [
-                    f"{char.description.split()[0]}: "
-                    f"{(await client.read_gatt_char(char)).decode('ascii')}"
-                    for char in srvd[DEVINFO].characteristics
-                ]
-            )
-            print("Connected;", details, file=stderr)
-            chrd = {
-                char.uuid: char for char in srvd[PC80B_SRV].characteristics
-            }
-            # print("chrd", chrd, file=stderr)
-            ctlval = await client.read_gatt_char(PC80B_CTL)
-            # print("ctlval", ctlval.hex(), file=stderr)
-            ntf = chrd[PC80B_NTF]
-            dscd = {
-                descriptor.uuid: descriptor for descriptor in ntf.descriptors
-            }
-            ntdval = await client.read_gatt_descriptor(dscd[PC80B_NTD].handle)
-            # print("ntdval", ntdval.hex(), file=stderr)
-            gui.report_ble(f"Connected {dev} {details}")
-            print(
-                "All controls are in place, ctl value",
-                ctlval.hex(),
-                file=stderr,
-            )
-            receiver = Receiver(client, gui)
-            await client.start_notify(ntf, receiver.receive)
-            # devinfo = bytes.fromhex("5a1106000000000000")
-            # crc = pack("B", crc8(devinfo))
-            # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
-            # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
-            await disconnect.wait()
-            disconnect.clear()
-
-            gui.report_ble(f"Disconnected")
-            print("Disconnecting", file=stderr)
+        disconnect.clear()
+        try:
+            async with BleakClient(
+                dev, disconnected_callback=on_disconnect
+            ) as client:
+                srvd = {srv.uuid: srv for srv in client.services}
+                # print("srvd", srvd, file=stderr)
+                details = ", ".join(
+                    [
+                        f"{char.description.split()[0]}: "
+                        f"{(await client.read_gatt_char(char)).decode('ascii')}"
+                        for char in srvd[DEVINFO].characteristics
+                    ]
+                )
+                print("Connected;", details, file=stderr)
+                chrd = {
+                    char.uuid: char for char in srvd[PC80B_SRV].characteristics
+                }
+                # print("chrd", chrd, file=stderr)
+                ctlval = await client.read_gatt_char(PC80B_CTL)
+                # print("ctlval", ctlval.hex(), file=stderr)
+                ntf = chrd[PC80B_NTF]
+                dscd = {
+                    descriptor.uuid: descriptor
+                    for descriptor in ntf.descriptors
+                }
+                ntdval = await client.read_gatt_descriptor(
+                    dscd[PC80B_NTD].handle
+                )
+                # print("ntdval", ntdval.hex(), file=stderr)
+                gui.report_ble(f"Connected {dev} {details}")
+                print(
+                    "All controls are in place, ctl value",
+                    ctlval.hex(),
+                    file=stderr,
+                )
+                receiver = Receiver(client, gui)
+                await client.start_notify(ntf, receiver.receive)
+                # devinfo = bytes.fromhex("5a1106000000000000")
+                # crc = pack("B", crc8(devinfo))
+                # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
+                # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
+                await disconnect.wait()
+                gui.report_ble(f"Disconnected")
+                print("Disconnecting", file=stderr)
+        except TimeoutError:
+            print("Timeout connecting, retry")
         print("Disconnected", file=stderr)
 
 
@@ -161,7 +167,15 @@ if __name__ == "__main__":
     topts, args = getopt(argv[1:], "hva:")
     opts = dict(topts)
     verbose = "-v" in opts
+
+    class Gui:
+        def report_ble(self, sts) -> None:
+            print("report_ble", sts)
+
+        def report_ecg(self, ev) -> None:
+            print("report_ecg", ev)
+
     try:
-        asyncio.run(scanner())
+        asyncio.run(scanner(Gui()))
     except KeyboardInterrupt:
         print("Exit", file=stderr)
