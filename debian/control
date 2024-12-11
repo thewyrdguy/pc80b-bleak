@@ -20,7 +20,9 @@ X-Description: Application to read and render realtime ECG
 Package: pc80b-ble
 Architecture: any
 Section: python
-Depends: ${misc:Depends},
+Depends: python3-gi (>> 3.50) | python3-gbulb,
+         gstreamer1.0-gtk4,
+         ${misc:Depends},
          ${shlibs:Depends},
 Description: Application to read and render realtime ECG
  GTK4 / Gstreamer / bleak application to read and render realtime ECG
