@@ -7,7 +7,6 @@ from cairo import (
     FONT_WEIGHT_BOLD,
 )
 from itertools import islice
-from math import sin
 from time import time
 
 import gi
@@ -44,7 +43,7 @@ class Drw:
             "sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_BOLD
         )
         self.c.set_font_size(48)
-        text = "No Signal"
+        text = "ECG recodrer not connected"
         (x, y, w, h, dx, dy) = self.c.text_extents(text)
         self.c.move_to((self.crt_w - w) / 2.0, (self.crt_h - h) / 2.0)
         self.c.set_source_rgb(1.0, 1.0, 1.0)
@@ -58,6 +57,14 @@ class Drw:
         self.src.emit("push-buffer", buffer)
 
     def draw(self):
+        """
+        Consume data from the fifo and produce video buffers.
+        Return when all data is consumed.
+        This is called when
+        1. new data arrives from the BLE receiver, or
+        2. gstremer pipeline askes for more buffers (we then draw flatline)
+        """
+        # TODO move timestamping to the report_ecg() function
         start = round(time() * 1000000000)
         seqno = 0
         xstep = self.crt_w / WWIDTH
@@ -99,14 +106,18 @@ class Drw:
                 break
 
     def on_need_data(self, source, amount):
-        print("Need data, fifo", len(self.data), "time", time())
+        """
+        When asked for bufferi by gstreamer, if the fifo is empty, give
+        them one slice worth of zeroes. Then make a buffer, of course.
+        """
+        # print("Need data, fifo", len(self.data), "time", time())
         if not self.data:  # deque empty
             self.data.extend(0.0 for _ in range(SAMPF))
-        #    self.data.extend(sin(i / 20) for i in range(WWIDTH))
         self.draw()
 
     def report_ecg(self, ev) -> None:
+        """Put data in the fifo and start producing buffers"""
         if isinstance(ev, (EventPc80bContData, EventPc80bFastData)):
             self.data.extend(ev.ecgFloats)
             self.draw()
-        print("ECG fifo", len(self.data), "event", ev)
+        # print("ECG fifo", len(self.data), "event", ev)
