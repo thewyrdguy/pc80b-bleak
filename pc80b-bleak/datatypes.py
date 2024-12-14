@@ -157,3 +157,7 @@ def mkEv(ev, data):
     if ev in CLASSES:
         return CLASSES[ev](data)
     return f"EventPc80b???(0x{ev:02x}:{data.hex()} )"
+
+class TestData(Event):
+    def __init__(self, ecgFloats) -> None:
+        self.ecgFloats = ecgFloats

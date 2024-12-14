@@ -15,7 +15,7 @@ gi.require_version("GLib", "2.0")
 gi.require_version("Gst", "1.0")
 from gi.repository import GLib, Gst
 
-from .datatypes import EventPc80bContData, EventPc80bFastData
+from .datatypes import EventPc80bContData, EventPc80bFastData, TestData
 
 WWIDTH = 150 * 3
 SAMPF = 5
@@ -69,25 +69,28 @@ class Drw:
         seqno = 0
         xstep = self.crt_w / WWIDTH
         ymid = self.crt_h / 2
-        yscale = ymid / 1.5  # div by max y value
+        yscale = ymid / 4.0  # div by max y value - +/- 4 mV
         self.c.set_source_rgb(0.0, 1.0, 0.0)
         self.c.set_line_width(3)
+        self.c.move_to(
+            self.samppos * xstep, ymid - self.prevval * yscale
+        )
         while True:
             try:
-                self.c.move_to(
-                    self.samppos * xstep, ymid - self.prevval * yscale
-                )
                 for val in (self.data.popleft() for _ in range(SAMPF)):
                     self.c.line_to(
                         self.samppos * xstep + xstep, ymid - val * yscale
                     )
-                    self.c.stroke()
                     self.prevval = val
                     self.samppos += 1
 
                     if self.samppos > WWIDTH:
-                        self.samppos = -WWIDTH
+                        self.samppos = 0
+                        self.c.move_to(
+                            self.samppos, ymid - self.prevval * yscale
+                        )
 
+                self.c.stroke()
                 buffer = Gst.Buffer.new_wrapped_bytes(
                     GLib.Bytes.new(self.image.get_data())
                 )
@@ -102,7 +105,7 @@ class Drw:
                 seqno += 1
                 self.src.emit("push-buffer", buffer)
             except IndexError:  # Ran out of data
-                print("Ran out of data, seqno:", seqno)
+                # print("Ran out of data, seqno:", seqno)
                 break
 
     def on_need_data(self, source, amount):
@@ -117,7 +120,7 @@ class Drw:
 
     def report_ecg(self, ev) -> None:
         """Put data in the fifo and start producing buffers"""
-        if isinstance(ev, (EventPc80bContData, EventPc80bFastData)):
+        if isinstance(ev, (EventPc80bContData, EventPc80bFastData, TestData)):
             self.data.extend(ev.ecgFloats)
             self.draw()
         # print("ECG fifo", len(self.data), "event", ev)
