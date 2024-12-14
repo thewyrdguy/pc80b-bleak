@@ -113,11 +113,18 @@ async def scanner(gui):
             file=stderr,
         )
         await asyncio.sleep(DELAY)
-        disconnect.clear()
         try:
             async with BleakClient(
                 dev, disconnected_callback=on_disconnect
             ) as client:
+                # Disconnect callback may have been called in the duration
+                # of connecting and querying attributes. If we got here,
+                # it means that they should be ignored. True failure to
+                # connect is reported as TimeoutError execption, that we
+                # handle below. And disconnect that happens _after_ this
+                # point will really result in dropping out of the context.
+                disconnect.clear()
+
                 srvd = {srv.uuid: srv for srv in client.services}
                 # print("srvd", srvd, file=stderr)
                 details = ", ".join(
