@@ -15,6 +15,7 @@ from .datatypes import (
     EventPc80bFastData,
     EventPc80bTransmode,
     EventPc80bTime,
+    TestData,
 )
 
 DELAY = 3
@@ -168,6 +169,19 @@ async def scanner(gui):
         except TimeoutError:
             print("Timeout connecting, retry")
         print("Disconnected", file=stderr)
+
+async def testsrc(gui):
+    print("Launched test source")
+    step = 0
+    while True:
+        phase = step % 4
+        step += 1
+        if step > 4:
+            step = 0
+        values = [step * 2 - 4.0] * 25  # ladder from -4 to +4
+        print("Test source of 25", step * 2 - 4)
+        gui.report_ecg(TestData(ecgFloats = values))
+        await asyncio.sleep(0.166666666)
 
 
 if __name__ == "__main__":
