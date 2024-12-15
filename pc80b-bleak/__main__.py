@@ -18,5 +18,5 @@ if __name__ == "__main__":
         dathread.start()
         app.run()
     except KeyboardInterrupt:
-        # TODO kill dathread
+        dathread.stop()
         app.quit()

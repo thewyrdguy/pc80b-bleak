@@ -31,6 +31,7 @@ PC80B_NTD = "00002902-0000-1000-8000-00805f9b34fb"
 crc8 = predefined.mkCrcFun("crc-8-maxim")
 
 disconnect = asyncio.Event()
+running = True
 
 verbose = False
 
@@ -95,7 +96,7 @@ def on_disconnect(client):
 
 
 async def scanner(gui):
-    while True:
+    while running:
         gui.report_ble(f"Scanning")
         async with BleakScanner() as scanner:
             print("Waiting for PC80B-BLE device to appear...", file=stderr)
@@ -176,7 +177,7 @@ async def scanner(gui):
 async def testsrc(gui):
     print("Launched test source")
     step = 0
-    while True:
+    while running:
         if step > 6:
             step = 0
         values = [step - 4.0] * 25  # ladder from -4 to +4
@@ -194,10 +195,12 @@ class Scanner(Thread):
 
     def run(self) -> None:
         asyncio.run(self.sigsrc(self.gui))
+        print("asyncio.run finished")
 
     def stop(self) -> None:
-        # TODO implement stop
-        pass
+        print("scanner stop called")
+        running = False
+        disconnect.set()
 
 
 if __name__ == "__main__":

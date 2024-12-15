@@ -21,7 +21,7 @@ Package: pc80b-ble
 Architecture: any
 Section: python
 Depends: python3-gi,
-         python3-gst,
+         python3-gst-1.0,
          gstreamer1.0-gtk4,
          python3-crcmod,
          ${misc:Depends},
