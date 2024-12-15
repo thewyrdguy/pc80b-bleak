@@ -6,6 +6,7 @@ from os import mknod, unlink, write
 from stat import S_IFIFO
 from sys import argv, stderr, stdout
 from struct import pack, unpack
+from threading import Thread
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
@@ -170,6 +171,7 @@ async def scanner(gui):
             print("Timeout connecting, retry")
         print("Disconnected", file=stderr)
 
+
 async def testsrc(gui):
     print("Launched test source")
     step = 0
@@ -180,8 +182,22 @@ async def testsrc(gui):
             step = 0
         values = [step * 2 - 4.0] * 25  # ladder from -4 to +4
         print("Test source of 25", step * 2 - 4)
-        gui.report_ecg(TestData(ecgFloats = values))
+        gui.report_ecg(TestData(ecgFloats=values))
         await asyncio.sleep(0.166666666)
+
+
+class Scanner(Thread):
+    def __init__(self, gui, **opts) -> None:
+        super().__init__()
+        self.sigsrc = testsrc if "-t" in opts else scanner
+        self.gui = gui
+
+    def run(self) -> None:
+        asyncio.run(self.sigsrc(self.gui))
+
+    def stop(self) -> None:
+        # TODO implement stop
+        pass
 
 
 if __name__ == "__main__":

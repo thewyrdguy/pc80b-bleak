@@ -72,9 +72,7 @@ class Drw:
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
         self.c.set_source_rgb(0.0, 1.0, 0.0)
         self.c.set_line_width(3)
-        self.c.move_to(
-            self.samppos * xstep, ymid - self.prevval * yscale
-        )
+        self.c.move_to(self.samppos * xstep, ymid - self.prevval * yscale)
         while True:
             try:
                 for val in (self.data.popleft() for _ in range(SAMPF)):
