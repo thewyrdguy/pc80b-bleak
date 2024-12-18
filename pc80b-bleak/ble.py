@@ -7,6 +7,7 @@ from stat import S_IFIFO
 from sys import argv, stderr, stdout
 from struct import pack, unpack
 from threading import Thread
+from time import time
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
@@ -176,13 +177,12 @@ async def testsrc(gui):
     print("Launched test source")
     step = 0
     while True:
-        phase = step % 4
-        step += 1
-        if step > 4:
+        if step > 6:
             step = 0
-        values = [step * 2 - 4.0] * 25  # ladder from -4 to +4
-        print("Test source of 25", step * 2 - 4)
+        values = [step - 4.0] * 25  # ladder from -4 to +4
+        print(time(), "Test source of 25", step - 4.0)
         gui.report_ecg(TestData(ecgFloats=values))
+        step += 1
         await asyncio.sleep(0.166666666)
 
 
