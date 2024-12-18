@@ -6,7 +6,7 @@ from cairo import (
     FONT_WEIGHT_BOLD,
 )
 from itertools import islice
-from time import time
+from time import time_ns
 from typing import Iterable, Tuple
 
 import gi
@@ -17,10 +17,14 @@ from gi.repository import GLib, Gst
 
 from .datatypes import EventPc80bContData, EventPc80bFastData, TestData
 
-WWIDTH = 150 * 3
-SAMPS_PER_FRAME = 5
-SAMPDUR = 6666666  # 1/150 sec in nanoseconds
-FRAMEDUR = 33333333  # 1/30 sec in nanoseconds
+FRAMES_PER_SEC = 30
+VALS_PER_SEC = 150
+SECS_ON_SCREEN = 3
+
+VALS_ON_SCREEN = VALS_PER_SEC * SECS_ON_SCREEN
+SAMPS_PER_FRAME = VALS_PER_SEC // FRAMES_PER_SEC
+SAMPDUR = 1_000_000_000 // VALS_PER_SEC
+FRAMEDUR = 1_000_000_000 // FRAMES_PER_SEC
 
 
 class Drw:
@@ -28,15 +32,13 @@ class Drw:
         self.src = src
         self.crt_w = crt_w
         self.crt_h = crt_h
-        self.samppos = 0
-        self.prevval = 0.0
         src.connect("need-data", self.on_need_data)
         src.connect("enough-data", self.on_enough_data)
         self.image = ImageSurface(FORMAT_ARGB32, self.crt_w, self.crt_h)
         self.c = Context(self.image)
-        self.clearscreen()
+        self.clearscreen("ECG recodrer not connected")
 
-    def clearscreen(self) -> None:
+    def clearscreen(self, text: str) -> None:
         self.c.set_source_rgb(0.0, 0.0, 0.0)
         self.c.rectangle(0, 0, self.crt_w, self.crt_h)
         self.c.fill()
@@ -44,7 +46,6 @@ class Drw:
             "sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_BOLD
         )
         self.c.set_font_size(48)
-        text = "ECG recodrer not connected"
         (x, y, w, h, dx, dy) = self.c.text_extents(text)
         self.c.move_to((self.crt_w - w) / 2.0, (self.crt_h - h) / 2.0)
         self.c.set_source_rgb(1.0, 1.0, 1.0)
@@ -56,6 +57,8 @@ class Drw:
         buffer.duration = FRAMEDUR
         print("push clearscreen")
         self.src.emit("push-buffer", buffer)
+        self.samppos = 0
+        self.prevval = 0.0
         self.c.move_to(0, self.crt_h / 2)
 
     def draw(self, data: Iterable[Tuple[int, float]]):
@@ -67,8 +70,7 @@ class Drw:
         2. gstremer pipeline askes for more buffers (we then draw flatline)
         """
         # TODO move timestamping to the report_ecg() function
-        start = round(time() * 1000000000)
-        xstep = self.crt_w / WWIDTH
+        start = time_ns()
         ymid = self.crt_h / 2
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
         self.c.set_source_rgb(0.0, 1.0, 0.0)
@@ -80,14 +82,18 @@ class Drw:
                     next(data) for _ in range(SAMPS_PER_FRAME)
                 ):
                     self.samppos += 1
-                    self.c.line_to(self.samppos * xstep, ymid - val * yscale)
+                    self.c.line_to(
+                        self.samppos * self.crt_w // VALS_ON_SCREEN,
+                        ymid - val * yscale,
+                    )
 
-                    if self.samppos >= WWIDTH:
+                    if self.samppos >= VALS_ON_SCREEN:
                         self.samppos = 0
                         self.c.move_to(self.samppos, ymid - val * yscale)
 
                 self.prevval = val
                 self.c.stroke()
+
                 # Wrap the image in a Buffer and make a fresh copy
                 buffer = Gst.Buffer.new_wrapped_bytes(
                     GLib.Bytes.new(self.image.get_data())
@@ -109,11 +115,12 @@ class Drw:
 
     def on_need_data(self, source, amount):
         """
-        When asked for bufferi by gstreamer, if the fifo is empty, give
-        them one slice worth of zeroes. Then make a buffer, of course.
+        If asked for buffer by gstreamer, it probably means that data
+        thread is not sending any data. So produce one frame worth of
+        zeroes and send one buffer.
         """
-        # print("Need data, time", time())
-        start = round(time() * 1000000000)  # ns
+        # print("Need data, time", time_ns())
+        start = time_ns()
         self.draw(((start + n * SAMPDUR, 0.0) for n in range(SAMPS_PER_FRAME)))
 
     def on_enough_data(self, source):
@@ -121,7 +128,7 @@ class Drw:
 
     def report_ecg(self, ev) -> None:
         """Put data in the fifo and start producing buffers"""
-        start = round(time() * 1000000000)  # ns
+        start = time_ns()
         # print("ECG, time", start, "event", ev)
         if isinstance(ev, (EventPc80bContData, EventPc80bFastData, TestData)):
             self.draw(
