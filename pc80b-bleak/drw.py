@@ -1,4 +1,3 @@
-from collections import deque
 from cairo import (
     Context,
     ImageSurface,
@@ -8,6 +7,7 @@ from cairo import (
 )
 from itertools import islice
 from time import time
+from typing import Iterable, Tuple
 
 import gi
 
@@ -18,24 +18,25 @@ from gi.repository import GLib, Gst
 from .datatypes import EventPc80bContData, EventPc80bFastData, TestData
 
 WWIDTH = 150 * 3
-SAMPF = 5
-DURATION = 33333333
+SAMPS_PER_FRAME = 5
+SAMPDUR = 6666666  # 1/150 sec in nanoseconds
+FRAMEDUR = 33333333  # 1/30 sec in nanoseconds
 
 
 class Drw:
-    def __init__(self, src, crt_w, crt_h) -> None:
+    def __init__(self, src: Gst.Element, crt_w: int, crt_h: int) -> None:
         self.src = src
         self.crt_w = crt_w
         self.crt_h = crt_h
-        self.data = deque([], WWIDTH)
         self.samppos = 0
         self.prevval = 0.0
         src.connect("need-data", self.on_need_data)
+        src.connect("enough-data", self.on_enough_data)
         self.image = ImageSurface(FORMAT_ARGB32, self.crt_w, self.crt_h)
         self.c = Context(self.image)
         self.clearscreen()
 
-    def clearscreen(self):
+    def clearscreen(self) -> None:
         self.c.set_source_rgb(0.0, 0.0, 0.0)
         self.c.rectangle(0, 0, self.crt_w, self.crt_h)
         self.c.fill()
@@ -52,11 +53,12 @@ class Drw:
         buffer = Gst.Buffer.new_wrapped_bytes(
             GLib.Bytes.new(self.image.get_data())
         )
-        buffer.duration = DURATION
+        buffer.duration = FRAMEDUR
         print("push clearscreen")
         self.src.emit("push-buffer", buffer)
+        self.c.move_to(0, self.crt_h / 2)
 
-    def draw(self):
+    def draw(self, data: Iterable[Tuple[int, float]]):
         """
         Consume data from the fifo and produce video buffers.
         Return when all data is consumed.
@@ -66,59 +68,62 @@ class Drw:
         """
         # TODO move timestamping to the report_ecg() function
         start = round(time() * 1000000000)
-        seqno = 0
         xstep = self.crt_w / WWIDTH
         ymid = self.crt_h / 2
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
         self.c.set_source_rgb(0.0, 1.0, 0.0)
         self.c.set_line_width(3)
-        self.c.move_to(self.samppos * xstep, ymid - self.prevval * yscale)
-        while True:
-            try:
-                for val in (self.data.popleft() for _ in range(SAMPF)):
-                    self.c.line_to(
-                        self.samppos * xstep + xstep, ymid - val * yscale
-                    )
-                    self.prevval = val
+        blist = Gst.BufferList.new()
+        try:
+            while True:  # Will be broken by StopIteration
+                for tstamp, val in (
+                    next(data) for _ in range(SAMPS_PER_FRAME)
+                ):
                     self.samppos += 1
+                    self.c.line_to(self.samppos * xstep, ymid - val * yscale)
 
-                    if self.samppos > WWIDTH:
+                    if self.samppos >= WWIDTH:
                         self.samppos = 0
-                        self.c.move_to(
-                            self.samppos, ymid - self.prevval * yscale
-                        )
+                        self.c.move_to(self.samppos, ymid - val * yscale)
 
+                self.prevval = val
                 self.c.stroke()
+                # Wrap the image in a Buffer and make a fresh copy
                 buffer = Gst.Buffer.new_wrapped_bytes(
                     GLib.Bytes.new(self.image.get_data())
-                )
-                buffer.duration = DURATION
-                # buffer = Gst.Buffer.copy_deep(self.buffer)
+                ).copy_deep()
+                buffer.duration = FRAMEDUR
                 buffer.add_reference_timestamp_meta(
                     Gst.Caps.from_string("timestamp/x-unix"),
-                    start + DURATION * seqno,
-                    DURATION,
+                    tstamp,
+                    FRAMEDUR,
                 )
-                # print("pushing buffer seq", seqno, "timestamp", start + DURATION * seqno)
-                seqno += 1
-                self.src.emit("push-buffer", buffer)
-            except IndexError:  # Ran out of data
-                # print("Ran out of data, seqno:", seqno)
-                break
+                # and add the buffer to the list
+                blist.insert(-1, buffer)  # "-1" will append to the end
+        except StopIteration:
+            pass
+        except RuntimeError as e:  # After PEP 479 it does not bubble up
+            if not isinstance(e.__cause__, StopIteration):
+                raise
+        self.src.emit("push-buffer-list", blist)
 
     def on_need_data(self, source, amount):
         """
         When asked for bufferi by gstreamer, if the fifo is empty, give
         them one slice worth of zeroes. Then make a buffer, of course.
         """
-        # print("Need data, fifo", len(self.data), "time", time())
-        if not self.data:  # deque empty
-            self.data.extend(0.0 for _ in range(SAMPF))
-        self.draw()
+        # print("Need data, time", time())
+        start = round(time() * 1000000000)  # ns
+        self.draw(((start + n * SAMPDUR, 0.0) for n in range(SAMPS_PER_FRAME)))
+
+    def on_enough_data(self, source):
+        print("Uh-oh, got 'enough-data'")
 
     def report_ecg(self, ev) -> None:
         """Put data in the fifo and start producing buffers"""
+        start = round(time() * 1000000000)  # ns
+        # print("ECG, time", start, "event", ev)
         if isinstance(ev, (EventPc80bContData, EventPc80bFastData, TestData)):
-            self.data.extend(ev.ecgFloats)
-            self.draw()
-        # print("ECG fifo", len(self.data), "event", ev)
+            self.draw(
+                ((start + n * SAMPDUR, v) for n, v in enumerate(ev.ecgFloats))
+            )

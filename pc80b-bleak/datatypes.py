@@ -1,4 +1,5 @@
 from inspect import isclass
+from sys import stderr
 from struct import error, unpack
 from datetime import datetime
 from typing import ClassVar, NamedTuple
