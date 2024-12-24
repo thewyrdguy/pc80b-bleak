@@ -5,7 +5,6 @@ from cairo import (
     FONT_SLANT_NORMAL,
     FONT_WEIGHT_BOLD,
 )
-from itertools import islice
 from time import time_ns
 from typing import Iterable, Tuple
 
@@ -21,6 +20,8 @@ FRAMES_PER_SEC = 30
 VALS_PER_SEC = 150
 SECS_ON_SCREEN = 3
 
+POOLSIZE = 12
+
 VALS_ON_SCREEN = VALS_PER_SEC * SECS_ON_SCREEN
 SAMPS_PER_FRAME = VALS_PER_SEC // FRAMES_PER_SEC
 SAMPDUR = 1_000_000_000 // VALS_PER_SEC
@@ -35,6 +36,14 @@ class Drw:
         src.connect("need-data", self.on_need_data)
         src.connect("enough-data", self.on_enough_data)
         self.image = ImageSurface(FORMAT_ARGB32, self.crt_w, self.crt_h)
+        bufsize = len(self.image.get_data())
+        # print("bufsize", bufsize)
+        self.pool = Gst.BufferPool.new()
+        bpconf = self.pool.get_config()
+        self.pool.config_set_params(bpconf, None, bufsize, POOLSIZE, POOLSIZE)
+        self.pool.set_config(bpconf)
+        self.pool.set_active(True)
+        print("Pool is active?", self.pool.is_active())
         self.c = Context(self.image)
         self.clearscreen("ECG recodrer not connected")
 
@@ -51,9 +60,9 @@ class Drw:
         self.c.set_source_rgb(1.0, 1.0, 1.0)
         self.c.show_text(text)
 
-        buffer = Gst.Buffer.new_wrapped_bytes(
-            GLib.Bytes.new(self.image.get_data())
-        )
+        self.bytes = self.image.get_data()
+        gbytes = GLib.Bytes.new(self.bytes)
+        buffer = Gst.Buffer.new_wrapped_bytes(gbytes).copy_deep()
         buffer.duration = FRAMEDUR
         print("push clearscreen")
         self.src.emit("push-buffer", buffer)
@@ -63,13 +72,11 @@ class Drw:
 
     def draw(self, data: Iterable[Tuple[int, float]]):
         """
-        Consume data from the fifo and produce video buffers.
-        Return when all data is consumed.
+        Produce video buffers from data that can be 5 to 25 samples.
         This is called when
         1. new data arrives from the BLE receiver, or
         2. gstremer pipeline askes for more buffers (we then draw flatline)
         """
-        # TODO move timestamping to the report_ecg() function
         start = time_ns()
         ymid = self.crt_h / 2
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
@@ -94,10 +101,18 @@ class Drw:
                 self.prevval = val
                 self.c.stroke()
 
-                # Wrap the image in a Buffer and make a fresh copy
-                buffer = Gst.Buffer.new_wrapped_bytes(
-                    GLib.Bytes.new(self.image.get_data())
-                ).copy_deep()
+                print("image ready", (time_ns() - start) // 1_000)
+                imgbytes = self.image.get_data()
+                print("got image data", (time_ns() - start) // 1_000)
+                # buffer = Gst.Buffer.new_memdup(self.bytes)
+                res, buffer = self.pool.acquire_buffer()
+                if res != Gst.FlowReturn.OK:
+                    raise RuntimeError(f"buffer acquisition {res}")
+                print("buffer acquired", (time_ns() - start) // 1_000)
+                with buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE) as m:
+                    print("data mapped", (time_ns() - start) // 1_000)
+                    m.data[:] = imgbytes
+                print("data copied", (time_ns() - start) // 1_000)
                 buffer.duration = FRAMEDUR
                 buffer.add_reference_timestamp_meta(
                     Gst.Caps.from_string("timestamp/x-unix"),
@@ -111,7 +126,9 @@ class Drw:
         except RuntimeError as e:  # After PEP 479 it does not bubble up
             if not isinstance(e.__cause__, StopIteration):
                 raise
+        print("push blist", (time_ns() - start) // 1_000, "length", blist.length())
         self.src.emit("push-buffer-list", blist)
+        print("blist pushed", (time_ns() - start) // 1_000)
 
     def on_need_data(self, source, amount):
         """
