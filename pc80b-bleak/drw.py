@@ -42,8 +42,8 @@ class Drw:
         bpconf = self.pool.get_config()
         self.pool.config_set_params(bpconf, None, bufsize, POOLSIZE, POOLSIZE)
         self.pool.set_config(bpconf)
-        self.pool.set_active(True)
-        print("Pool is active?", self.pool.is_active())
+        if not self.pool.set_active(True):
+            raise RuntimeError("Could not activate buffer pool")
         self.c = Context(self.image)
         self.clearscreen("ECG recodrer not connected")
 
@@ -85,9 +85,12 @@ class Drw:
         blist = Gst.BufferList.new()
         try:
             while True:  # Will be broken by StopIteration
+                frstart = 0
                 for tstamp, val in (
                     next(data) for _ in range(SAMPS_PER_FRAME)
                 ):
+                    if frstart == 0:
+                        frstart = tstamp  # timestamp of the first sample
                     self.samppos += 1
                     self.c.line_to(
                         self.samppos * self.crt_w // VALS_ON_SCREEN,
@@ -101,24 +104,20 @@ class Drw:
                 self.prevval = val
                 self.c.stroke()
 
-                print("image ready", (time_ns() - start) // 1_000)
+                # print("image ready", (time_ns() - start) // 1_000)
                 imgbytes = self.image.get_data()
-                print("got image data", (time_ns() - start) // 1_000)
+                # print("got image data", (time_ns() - start) // 1_000)
                 # buffer = Gst.Buffer.new_memdup(self.bytes)
                 res, buffer = self.pool.acquire_buffer()
                 if res != Gst.FlowReturn.OK:
                     raise RuntimeError(f"buffer acquisition {res}")
-                print("buffer acquired", (time_ns() - start) // 1_000)
+                # print("buffer acquired", (time_ns() - start) // 1_000)
                 with buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE) as m:
-                    print("data mapped", (time_ns() - start) // 1_000)
+                    # print("data mapped", (time_ns() - start) // 1_000)
                     m.data[:] = imgbytes
-                print("data copied", (time_ns() - start) // 1_000)
+                # print("data copied", (time_ns() - start) // 1_000)
                 buffer.duration = FRAMEDUR
-                buffer.add_reference_timestamp_meta(
-                    Gst.Caps.from_string("timestamp/x-unix"),
-                    tstamp,
-                    FRAMEDUR,
-                )
+                buffer.dts = frstart + FRAMEDUR  # Delay by one frame (?)
                 # and add the buffer to the list
                 blist.insert(-1, buffer)  # "-1" will append to the end
         except StopIteration:
@@ -126,9 +125,14 @@ class Drw:
         except RuntimeError as e:  # After PEP 479 it does not bubble up
             if not isinstance(e.__cause__, StopIteration):
                 raise
-        print("push blist", (time_ns() - start) // 1_000, "length", blist.length())
+        # print(
+        #     "push blist",
+        #     (time_ns() - start) // 1_000,
+        #     "length",
+        #     blist.length(),
+        # )
         self.src.emit("push-buffer-list", blist)
-        print("blist pushed", (time_ns() - start) // 1_000)
+        # print("blist pushed", (time_ns() - start) // 1_000)
 
     def on_need_data(self, source, amount):
         """
@@ -137,7 +141,7 @@ class Drw:
         zeroes and send one buffer.
         """
         # print("Need data, time", time_ns())
-        start = time_ns()
+        start = self.src.get_current_clock_time()
         self.draw(((start + n * SAMPDUR, 0.0) for n in range(SAMPS_PER_FRAME)))
 
     def on_enough_data(self, source):
@@ -145,7 +149,7 @@ class Drw:
 
     def report_ecg(self, ev) -> None:
         """Put data in the fifo and start producing buffers"""
-        start = time_ns()
+        start = self.src.get_current_clock_time()
         # print("ECG, time", start, "event", ev)
         if isinstance(ev, (EventPc80bContData, EventPc80bFastData, TestData)):
             self.draw(
