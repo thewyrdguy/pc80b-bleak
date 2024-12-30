@@ -80,11 +80,19 @@ class Drw:
         start = time_ns()
         ymid = self.crt_h / 2
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
-        self.c.set_source_rgb(0.0, 1.0, 0.0)
-        self.c.set_line_width(3)
         blist = Gst.BufferList.new()
+        self.c.set_line_width(4)
         try:
             while True:  # Will be broken by StopIteration
+                self.c.set_source_rgb(0.0, 0.0, 0.0)
+                self.c.rectangle(
+                    self.samppos * self.crt_w // VALS_ON_SCREEN,
+                    0,
+                    SAMPS_PER_FRAME * self.crt_w // VALS_ON_SCREEN,
+                    self.crt_h,
+                )
+                self.c.fill()
+                self.c.set_source_rgb(0.0, 1.0, 0.0)
                 frstart = 0
                 self.c.move_to(
                     self.samppos * self.crt_w // VALS_ON_SCREEN,
@@ -106,6 +114,11 @@ class Drw:
                         self.c.move_to(0, ymid - val * yscale)
 
                 self.prevval = val
+                self.c.stroke()
+                self.c.set_source_rgb(0.2, 0.2, 0.2)
+                xpos = self.samppos * self.crt_w // VALS_ON_SCREEN + 2
+                self.c.move_to(xpos, 0)
+                self.c.line_to(xpos, self.crt_h)
                 self.c.stroke()
 
                 # print("image ready", (time_ns() - start) // 1_000)
