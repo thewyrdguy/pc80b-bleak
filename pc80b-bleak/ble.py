@@ -167,7 +167,7 @@ async def scanner(gui):
                 # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
                 # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
                 await disconnect.wait()
-                gui.report_ble(False, f"Disconnected")
+                gui.report_ble(False, "Disconnected")
                 print("Disconnecting", file=stderr)
         except TimeoutError:
             print("Timeout connecting, retry")
@@ -180,7 +180,7 @@ async def testsrc(gui):
     while running:
         if step > 6:
             step = 0
-        values = [step - 4.0] * 25  # ladder from -4 to +4
+        values = [step - 3.0] * 25  # ladder from -3 to +3
         print(time(), "Test source of 25", step - 4.0)
         gui.report_ecg(TestData(ecgFloats=values))
         step += 1
@@ -190,8 +190,12 @@ async def testsrc(gui):
 class Scanner(Thread):
     def __init__(self, gui, **opts) -> None:
         super().__init__()
-        self.sigsrc = testsrc if "-t" in opts else scanner
         self.gui = gui
+        if "-t" in opts:
+            self.sigsrc = testsrc
+            gui.report_ble(True, "Seding test ladder signal")
+        else:
+            self.sigsrc = scanner
 
     def run(self) -> None:
         asyncio.run(self.sigsrc(self.gui))
