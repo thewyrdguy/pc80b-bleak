@@ -73,7 +73,8 @@ class AppWindow(Gtk.ApplicationWindow):
         self.level_data = kwargs
         self.monda.queue_draw()
 
-    def report_ble(self, state: str) -> None:
+    def report_ble(self, connected: bool, state: str) -> None:
+        # show red/green indicator
         self.label.set_text(state)
 
 
@@ -92,7 +93,7 @@ class App(Adw.Application):
         self.win = AppWindow(self.pipe, application=app)
         self.win.present()
         if self.pending_ble_report is not None:
-            self.win.report_ble(self.pending_ble_report)
+            self.win.report_ble(*self.pending_ble_report)
             self.pending_ble_report = None
 
     def on_close(self, _):
@@ -102,11 +103,12 @@ class App(Adw.Application):
     def report_ecg(self, ev) -> None:
         self.pipe.report_ecg(ev)
 
-    def report_ble(self, state: str) -> None:
+    def report_ble(self, connected: bool, state: str) -> None:
+        self.pipe.report_ble(connected, state)
         if self.win is not None:
-            self.win.report_ble(state)
+            self.win.report_ble(connected, state)
         else:
-            self.pending_ble_report = state
+            self.pending_ble_report = connected, state
 
 
 if __name__ == "__main__":

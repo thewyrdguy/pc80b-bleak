@@ -90,5 +90,8 @@ class Pipe:
         else:
             self.pipeline.set_state(Gst.State.PAUSED)
 
+    def report_ble(self, connected: bool, state: str) -> None:
+        self.drw.report_ble(connected, state)
+
     def report_ecg(self, ev) -> None:
         self.drw.report_ecg(ev)

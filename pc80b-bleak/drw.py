@@ -147,6 +147,9 @@ class Drw:
     def on_enough_data(self, source):
         print("Uh-oh, got 'enough-data'")
 
+    def report_ble(self, connected: bool, state: str) -> None:
+        self.clearscreen("" if connected else state)
+
     def report_ecg(self, ev) -> None:
         """Put data in the fifo and start producing buffers"""
         start = self.src.get_current_clock_time()
