@@ -97,7 +97,7 @@ def on_disconnect(client):
 
 async def scanner(gui):
     while running:
-        gui.report_ble(f"Scanning")
+        gui.report_ble(False, f"Scanning")
         async with BleakScanner() as scanner:
             print("Waiting for PC80B-BLE device to appear...", file=stderr)
             async for dev, data in scanner.advertisement_data():
@@ -105,7 +105,7 @@ async def scanner(gui):
                 if dev.name == "PC80B-BLE":
                     # if PC80B_SRV in data.service_uuids:
                     break
-        gui.report_ble(f"Found {dev}")
+        gui.report_ble(False, f"Found {dev}")
         print(
             "Trying to use device",
             dev,
@@ -154,7 +154,7 @@ async def scanner(gui):
                     dscd[PC80B_NTD].handle
                 )
                 # print("ntdval", ntdval.hex(), file=stderr)
-                gui.report_ble(f"Connected {dev} {details}")
+                gui.report_ble(True, f"Connected {dev} {details}")
                 print(
                     "All controls are in place, ctl value",
                     ctlval.hex(),
@@ -167,7 +167,7 @@ async def scanner(gui):
                 # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
                 # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
                 await disconnect.wait()
-                gui.report_ble(f"Disconnected")
+                gui.report_ble(False, f"Disconnected")
                 print("Disconnecting", file=stderr)
         except TimeoutError:
             print("Timeout connecting, retry")
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     verbose = "-v" in opts
 
     class Gui:
-        def report_ble(self, sts) -> None:
+        def report_ble(self, connected, sts) -> None:
             print("report_ble", sts)
 
         def report_ecg(self, ev) -> None:
