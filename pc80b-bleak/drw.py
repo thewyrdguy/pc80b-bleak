@@ -54,7 +54,7 @@ class Drw:
         self.c.select_font_face(
             "sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_BOLD
         )
-        self.c.set_font_size(48)
+        self.c.set_font_size(36)
         (x, y, w, h, dx, dy) = self.c.text_extents(text)
         self.c.move_to((self.crt_w - w) / 2.0, (self.crt_h - h) / 2.0)
         self.c.set_source_rgb(1.0, 1.0, 1.0)
@@ -86,6 +86,10 @@ class Drw:
         try:
             while True:  # Will be broken by StopIteration
                 frstart = 0
+                self.c.move_to(
+                    self.samppos * self.crt_w // VALS_ON_SCREEN,
+                    ymid - self.prevval * yscale,
+                )
                 for tstamp, val in (
                     next(data) for _ in range(SAMPS_PER_FRAME)
                 ):
@@ -99,7 +103,7 @@ class Drw:
 
                     if self.samppos >= VALS_ON_SCREEN:
                         self.samppos = 0
-                        self.c.move_to(self.samppos, ymid - val * yscale)
+                        self.c.move_to(0, ymid - val * yscale)
 
                 self.prevval = val
                 self.c.stroke()
