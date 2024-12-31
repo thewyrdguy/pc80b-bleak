@@ -202,9 +202,20 @@ class Scanner(Thread):
         print("asyncio.run finished")
 
     def stop(self) -> None:
+        global running
         print("scanner stop called")
         running = False
         disconnect.set()
+        evloop = asyncio.get_event_loop()
+        if not evloop:
+            print("event loop not found")
+            return
+        if evloop.is_running():
+            print("stopping loop")
+            evloop.stop()
+        if not evloop.is_closed():
+            print("closing loop")
+            evloop.close()
 
 
 if __name__ == "__main__":
