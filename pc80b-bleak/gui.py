@@ -41,12 +41,18 @@ class AppWindow(Gtk.ApplicationWindow):
         self.set_child(vbox)
 
         self.monda = Gtk.DrawingArea()
-        self.monda.set_size_request(40, CRT_H)
+        self.monda.set_size_request(40, CRT_H // 2)
         self.monda.set_draw_func(self.draw_mon, None)
-        lframe = Gtk.Frame()
-        lframe.set_child(self.monda)
+        monframe = Gtk.Frame()
+        monframe.set_child(self.monda)
+        testswitch = Gtk.Switch()
+        testswitch.set_active(False)
+        testswitch.connect("state-set", self.on_testswitch)
         lbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        lbox.append(lframe)
+        lbox.append(Gtk.Label(label="Test"))
+        lbox.append(testswitch)
+        lbox.append(Gtk.Label(label="Vol"))
+        lbox.append(monframe)
         hbox.append(lbox)
 
         picture = Gtk.Picture.new()
@@ -62,22 +68,31 @@ class AppWindow(Gtk.ApplicationWindow):
         hbox.append(rbox)
 
         self.pipe.set_state(True)
-        self.datathread = Scanner(self, **kwargs)
+        self.datathread = Scanner(self, test=False)
         self.datathread.start()
 
     def draw_mon(self, monda, c, w, h, _):
-        maxh = h - 30
-        lvl = round((self.level_data.get("rms", [0.0])[0] + 35) * maxh / 35.0)
-        if lvl < 0:
-            lvl = 0
-        if lvl > maxh:
-            lvl = maxh
+        maxh = h - 20
         c.set_source_rgb(0, 0, 0)
-        c.rectangle(10, 10, w - 20, h - 20)
+        c.rectangle(5, 5, w - 10, h - 10)
         c.fill()
-        c.set_source_rgb(0, 1, 0)
-        c.rectangle(15, 15 + maxh - lvl, w - 30, lvl)
-        c.fill()
+        for lr in (0, 1):
+            lvl = round(
+                (self.level_data.get("rms", [0.0, 0.0])[lr] + 35) * maxh / 35.0
+            )
+            if lvl < 0:
+                lvl = 0
+            if lvl > maxh:
+                lvl = maxh
+            c.set_source_rgb(0, 1, 0)
+            c.rectangle(10 + lr * 14, 10 + maxh - lvl, 10, lvl)
+            c.fill()
+
+    def on_testswitch(self, switch, state):
+        self.datathread.stop()
+        self.datathread.join()
+        self.datathread = Scanner(self, test=state)
+        self.datathread.start()
 
     def on_close(self, _) -> None:
         self.datathread.stop()
