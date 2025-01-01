@@ -32,12 +32,14 @@ Gtk.StyleContext.add_provider_for_display(
     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
 )
 
+
 def spacepad(what: Gtk.Widget):
     what.set_spacing(5)
     what.set_margin_top(5)
     what.set_margin_bottom(5)
     what.set_margin_start(5)
     what.set_margin_end(5)
+
 
 class AppWindow(Gtk.ApplicationWindow):
     def __init__(self, app, *args: Any, **kwargs: Any) -> None:
@@ -49,22 +51,17 @@ class AppWindow(Gtk.ApplicationWindow):
         self.pipe = Pipe()
         self.pipe.register_on_level_callback(self.on_level)
 
+        kctrl = Gtk.EventControllerKey()
+        kctrl.connect("key-pressed", self.on_keypress, None)
+        self.add_controller(kctrl)
+
         # self.set_default_size(1080, 720)
         self.set_title("pc80b-bleak")
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         vbox.set_margin_top(5)
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        vbox.append(hbox)
-        self.label = Gtk.Label.new("Scanning")
-        self.label.set_hexpand(True)
-        self.label.set_xalign(0.0)
-        lbframe = Gtk.Frame()
-        lbframe.set_child(self.label)
-        lbbox = Gtk.Box()
-        spacepad(lbbox)
-        lbbox.append(lbframe)
-        vbox.append(lbbox)
         self.set_child(vbox)
+
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
 
         self.monda = Gtk.DrawingArea()
         self.monda.set_size_request(40, CRT_H // 2)
@@ -82,14 +79,41 @@ class AppWindow(Gtk.ApplicationWindow):
         lbox.append(monframe)
         hbox.append(lbox)
 
+        mbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
         picture = Gtk.Picture.new()
         picture.set_paintable(self.pipe.paintable)
         frame = Gtk.Frame()
         frame.set_child(picture)
-        crt = Gtk.Box()
-        crt.set_size_request(CRT_W, CRT_H)
-        crt.append(frame)
-        hbox.append(crt)
+        crtbox = Gtk.Box()
+        crtbox.set_size_request(CRT_W, CRT_H)
+        crtbox.append(frame)
+        mbox.append(crtbox)
+
+        self.streamurl = Gtk.Entry()
+        # self.streamurl.set_placeholder_text("Enter URL...")
+        self.streamurl.set_text("rtmp://a.rtmp.youtube.com/live2/")
+        self.streamurl.set_alignment(0)
+        self.streamurl.set_icon_from_icon_name(
+            Gtk.EntryIconPosition.SECONDARY, "edit-clear"
+        )
+        self.streamurl.set_icon_tooltip_markup(
+            Gtk.EntryIconPosition.SECONDARY, "<b>Clear Text</b>"
+        )
+        self.streamurl.set_max_length(48)
+        self.streamurl.connect("icon_press", self.on_streamurl_icon_press)
+        self.streamurl.connect("activate", self.on_streamurl_activate)
+        urlentry = Gtk.Box()
+        spacepad(urlentry)
+        urlentry.append(self.streamurl)
+        urlframe = Gtk.Frame()
+        urlframe.set_child(urlentry)
+        urlbox = Gtk.Box()
+        spacepad(urlbox)
+        urlbox.append(urlframe)
+        mbox.append(urlbox)
+
+        hbox.append(mbox)
 
         rbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         spacepad(rbox)
@@ -101,6 +125,18 @@ class AppWindow(Gtk.ApplicationWindow):
         self.onairframe.set_child(self.offairlbl)
         rbox.append(self.onairframe)
         hbox.append(rbox)
+
+        vbox.append(hbox)
+
+        self.label = Gtk.Label.new("Scanning")
+        self.label.set_hexpand(True)
+        self.label.set_xalign(0.0)
+        lbframe = Gtk.Frame()
+        lbframe.set_child(self.label)
+        lbbox = Gtk.Box()
+        spacepad(lbbox)
+        lbbox.append(lbframe)
+        vbox.append(lbbox)
 
         self.pipe.set_state(True)
         self.datathread = Scanner(self, test=False)
@@ -128,6 +164,19 @@ class AppWindow(Gtk.ApplicationWindow):
         self.datathread.join()
         self.datathread = Scanner(self, test=state)
         self.datathread.start()
+
+    def on_streamurl_activate(self, entry):
+        print("on_activate", entry)
+        buffer = entry.get_text()
+        print("buffer", buffer)
+
+    def on_keypress(self, event, keyval, keycode, state, user):
+        if keyval == Gdk.KEY_q and state & Gdk.ModifierType.CONTROL_MASK:
+            self.close()
+
+    def on_streamurl_icon_press(self, entry, icon_pos):
+        if icon_pos == Gtk.EntryIconPosition.SECONDARY:
+            entry.get_buffer().set_text("", 0)
 
     def on_close(self, _) -> None:
         self.datathread.stop()
