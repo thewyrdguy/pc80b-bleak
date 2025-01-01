@@ -81,6 +81,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def on_close(self, _) -> None:
         self.datathread.stop()
+        self.datathread.join()
         self.pipe.set_state(None)
 
     def on_level(self, **kwargs: Any) -> None:
