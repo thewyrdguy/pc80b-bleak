@@ -4,15 +4,33 @@ from typing import Any
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gdk, Gtk
 
 from .gst import Pipe
 from .ble import Scanner
 
 CRT_W = 720
 CRT_H = 480
+CSS = """
+.onair {
+    font-weight: bold;
+    color: white;
+    background-color: red;
+}
+.offair {
+    color: gray;
+    text-decoration: line-through;
+}
+"""
 
 Gtk.init()
+_css = Gtk.CssProvider()
+_css.load_from_data(CSS)
+Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    _css,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+)
 
 
 class AppWindow(Gtk.ApplicationWindow):
@@ -20,8 +38,8 @@ class AppWindow(Gtk.ApplicationWindow):
         self.args = args
         self.kwargs = kwargs
         super().__init__(application=app)
-        self.level_data = {}
         self.connect("close-request", self.on_close)
+        self.level_data = {}
         self.pipe = Pipe()
         self.pipe.register_on_level_callback(self.on_level)
 
@@ -65,6 +83,13 @@ class AppWindow(Gtk.ApplicationWindow):
         hbox.append(crt)
 
         rbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.onairlbl = Gtk.Label(label="On Air")
+        self.onairlbl.add_css_class("onair")
+        self.offairlbl = Gtk.Label(label="Off Air")
+        self.offairlbl.add_css_class("offair")
+        self.onairframe = Gtk.Frame()
+        self.onairframe.set_child(self.offairlbl)
+        rbox.append(self.onairframe)
         hbox.append(rbox)
 
         self.pipe.set_state(True)
