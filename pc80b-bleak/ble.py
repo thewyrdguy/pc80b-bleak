@@ -31,7 +31,7 @@ PC80B_NTD = "00002902-0000-1000-8000-00805f9b34fb"
 crc8 = predefined.mkCrcFun("crc-8-maxim")
 
 disconnect = asyncio.Event()
-running = True
+task = None
 
 verbose = False
 
@@ -96,7 +96,9 @@ def on_disconnect(client):
 
 
 async def scanner(gui):
-    while running:
+    global task
+    task = asyncio.current_task()
+    try:
         gui.report_ble(False, f"Scanning")
         async with BleakScanner() as scanner:
             print("Waiting for PC80B-BLE device to appear...", file=stderr)
@@ -172,19 +174,26 @@ async def scanner(gui):
         except TimeoutError:
             print("Timeout connecting, retry")
         print("Disconnected", file=stderr)
+    except asyncio.exceptions.CancelledError:
+        return
 
 
 async def testsrc(gui):
+    global task
+    task = asyncio.current_task()
     print("Launched test source")
     step = 0
-    while running:
-        if step > 6:
-            step = 0
-        values = [step - 3.0] * 25  # ladder from -3 to +3
-        print(time(), "Test source of 25", step - 4.0)
-        gui.report_ecg(TestData(ecgFloats=values))
-        step += 1
-        await asyncio.sleep(0.166666666)
+    try:
+        while True:
+            if step > 6:
+                step = 0
+            values = [step - 3.0] * 25  # ladder from -3 to +3
+            # print(time(), "Test source of 25", step - 4.0)
+            gui.report_ecg(TestData(ecgFloats=values))
+            step += 1
+            await asyncio.sleep(0.166666666)
+    except asyncio.exceptions.CancelledError:
+        return
 
 
 class Scanner(Thread):
@@ -202,20 +211,12 @@ class Scanner(Thread):
         print("asyncio.run finished")
 
     def stop(self) -> None:
-        global running
+        global task
         print("scanner stop called")
-        running = False
         disconnect.set()
-        evloop = asyncio.get_event_loop()
-        if not evloop:
-            print("event loop not found")
-            return
-        if evloop.is_running():
-            print("stopping loop")
-            evloop.stop()
-        if not evloop.is_closed():
-            print("closing loop")
-            evloop.close()
+        if task is not None:
+            task.cancel()
+            task = None
 
 
 if __name__ == "__main__":
