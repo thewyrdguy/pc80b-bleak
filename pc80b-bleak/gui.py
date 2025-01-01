@@ -32,6 +32,12 @@ Gtk.StyleContext.add_provider_for_display(
     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
 )
 
+def spacepad(what: Gtk.Widget):
+    what.set_spacing(5)
+    what.set_margin_top(5)
+    what.set_margin_bottom(5)
+    what.set_margin_start(5)
+    what.set_margin_end(5)
 
 class AppWindow(Gtk.ApplicationWindow):
     def __init__(self, app, *args: Any, **kwargs: Any) -> None:
@@ -46,6 +52,7 @@ class AppWindow(Gtk.ApplicationWindow):
         # self.set_default_size(1080, 720)
         self.set_title("pc80b-bleak")
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        vbox.set_margin_top(5)
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         vbox.append(hbox)
         self.label = Gtk.Label.new("Scanning")
@@ -54,6 +61,7 @@ class AppWindow(Gtk.ApplicationWindow):
         lbframe = Gtk.Frame()
         lbframe.set_child(self.label)
         lbbox = Gtk.Box()
+        spacepad(lbbox)
         lbbox.append(lbframe)
         vbox.append(lbbox)
         self.set_child(vbox)
@@ -67,6 +75,7 @@ class AppWindow(Gtk.ApplicationWindow):
         testswitch.set_active(False)
         testswitch.connect("state-set", self.on_testswitch)
         lbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        spacepad(lbox)
         lbox.append(Gtk.Label(label="Test"))
         lbox.append(testswitch)
         lbox.append(Gtk.Label(label="Vol"))
@@ -83,6 +92,7 @@ class AppWindow(Gtk.ApplicationWindow):
         hbox.append(crt)
 
         rbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        spacepad(rbox)
         self.onairlbl = Gtk.Label(label="On Air")
         self.onairlbl.add_css_class("onair")
         self.offairlbl = Gtk.Label(label="Off Air")
@@ -142,6 +152,7 @@ class App(Adw.Application):
         self.args = args
         self.kwargs = kwargs
         super().__init__()
+        self.get_style_manager().set_color_scheme(Adw.ColorScheme.PREFER_DARK)
         self.connect("activate", self.on_activate)
         self.connect("shutdown", self.on_shutdown)
 
