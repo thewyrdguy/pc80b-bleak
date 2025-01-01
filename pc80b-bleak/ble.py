@@ -182,6 +182,7 @@ async def testsrc(gui):
     global task
     task = asyncio.current_task()
     print("Launched test source")
+    gui.report_ble(True, "Sending test ladder signal")
     step = 0
     try:
         while True:
@@ -197,17 +198,13 @@ async def testsrc(gui):
 
 
 class Scanner(Thread):
-    def __init__(self, gui, **opts) -> None:
+    def __init__(self, gui, test: bool = False) -> None:
         super().__init__()
         self.gui = gui
-        if "-t" in opts:
-            self.sigsrc = testsrc
-            gui.report_ble(True, "Seding test ladder signal")
-        else:
-            self.sigsrc = scanner
+        self.test = test
 
     def run(self) -> None:
-        asyncio.run(self.sigsrc(self.gui))
+        asyncio.run((testsrc if self.test else scanner)(self.gui))
         print("asyncio.run finished")
 
     def stop(self) -> None:

@@ -45,7 +45,8 @@ class Drw:
         if not self.pool.set_active(True):
             raise RuntimeError("Could not activate buffer pool")
         self.c = Context(self.image)
-        self.clearscreen("ECG recodrer not connected")
+        self.samppos = 0
+        self.prevval = 0.0
 
     def clearscreen(self, text: str) -> None:
         self.c.set_source_rgb(0.0, 0.0, 0.0)
