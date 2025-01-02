@@ -23,6 +23,7 @@ Section: python
 Depends: python3-gi,
          python3-gst-1.0,
          gstreamer1.0-gtk4,
+         gstreamer1.0-plugins-bad,
          python3-crcmod,
          ${misc:Depends},
          ${shlibs:Depends},

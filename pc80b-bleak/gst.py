@@ -64,6 +64,24 @@ class Pipe:
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
 
+        if False:
+            # https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/rtmp.md
+            # Server: ffplay -listen 1 rtmp://0.0.0.0:9999/stream
+            # https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
+            self.pipeline.add(
+                rtmp := Gst.ElementFactory.make("rtmpsink", None)
+            )
+            rtmp.set_property("location", "rtmp://localhost/stream live=1")
+            self.pipeline.add(
+                flvmux := Gst.ElementFactory.make("flvmux", None)
+            )
+            flvmux.link(rtmp)
+            self.pipeline.add(
+                flvenc := Gst.ElementFactory.make("avenc_flv", None)
+            )
+            flvenc.link(flvmux)
+            # src.link_filtered(flvenc, Gst.Caps.from_string(CAPS))
+
     def on_eos(self, bus, msg):
         print("End of stream")
 
