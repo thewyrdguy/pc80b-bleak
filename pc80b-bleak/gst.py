@@ -35,11 +35,17 @@ class Pipe:
             raise RuntimeError("Refusing to run without OpenGL")
         self.pipeline.add(gsnk := Gst.ElementFactory.make("glsinkbin", None))
         gsnk.set_property("sink", gtksink)
-        gsnk.set_property("sync", True)
+        # gsnk.set_property("sync", True)
+        self.pipeline.add(gqueue := Gst.ElementFactory.make("queue", None))
+        gqueue.link(gsnk)
+
+        self.pipeline.add(tee := Gst.ElementFactory.make("tee", None))
+        tee.link(gqueue)
 
         self.pipeline.add(appsrc := Gst.ElementFactory.make("appsrc", None))
         appsrc.set_property("format", Gst.Format.TIME)
         self.drw = Drw(appsrc, CRT_W, CRT_H)
+        appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
 
         self.pipeline.add(
             asrc := Gst.ElementFactory.make("autoaudiosrc", None)
@@ -57,8 +63,9 @@ class Pipe:
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
 
-        if False:
+        if True:
             # https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/rtmp.md
+            # https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/tee.md
             # Server: ffplay -listen 1 rtmp://0.0.0.0:9999/stream
             # https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
             self.pipeline.add(
@@ -73,39 +80,30 @@ class Pipe:
             flvmux.set_property("streamable", True)
             flvmux.link(rtmp)
 
-            #self.pipeline.add(
-            #    voaacenc := Gst.ElementFactory.make("voaacenc", None)
-            #)
-            #voaacenc.set_property("bitrate", 128000)
-            #voaacenc.link(flvmux)
-            #alvl.link(voaacenc)
-
-            #self.pipeline.add(
-            #    x264enc := Gst.ElementFactory.make("x264enc", None)
-            #)
-            #x264enc.set_property("cabac", 1)
-            #x264enc.set_property("bframes", 2)
-            #x264enc.set_property("ref", 1)
-            #x264enc.link(flvmux)
-            ##self.pipeline.add(
-            ##    vqueue := Gst.ElementFactory.make("queue", None)
-            ##)
-            ##vqueue.link(x264enc)
-            #self.pipeline.add(
+            self.pipeline.add(
+                x264enc := Gst.ElementFactory.make("x264enc", None)
+            )
+            x264enc.set_property("cabac", 1)
+            x264enc.set_property("bframes", 2)
+            x264enc.set_property("ref", 1)
+            x264enc.set_property("tune", "zerolatency")
+            x264enc.link(flvmux)
+            # self.pipeline.add(
             #    vconv := Gst.ElementFactory.make("videoconvert", None)
-            #)
-            #vconv.link(vqueue)
+            # )
+            # vconv.link(x264enc)
+            self.pipeline.add(vqueue := Gst.ElementFactory.make("queue", None))
+            vqueue.link(x264enc)
 
-            #appsrc.link_filtered(vconv, Gst.Caps.from_string(CAPS))
-            #self.pipeline.add(
+            tee.link(vqueue)
+            # self.pipeline.add(
             #    tvsrc := Gst.ElementFactory.make("videotestsrc", None)
-            #)
-            #tvsrc.set_property("is-live", 1)
-            #tvsrc.link_filtered(vconv, Gst.Caps.from_string(CAPS))
-            #tvsrc.link(vconv)
+            # )
+            # tvsrc.set_property("is-live", 1)
+            # tvsrc.link_filtered(vconv, Gst.Caps.from_string(CAPS))
+            # tvsrc.link(vqueue)
 
         alvl.link(fakesnk)
-        appsrc.link_filtered(gsnk, Gst.Caps.from_string(CAPS))
 
     def on_eos(self, bus, msg):
         print("End of stream")
