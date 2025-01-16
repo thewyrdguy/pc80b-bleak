@@ -23,7 +23,7 @@ SECS_ON_SCREEN = 3
 POOLSIZE = 12
 
 VALS_ON_SCREEN = VALS_PER_SEC * SECS_ON_SCREEN
-SAMPS_PER_FRAME = VALS_PER_SEC // FRAMES_PER_SEC
+VALS_PER_FRAME = VALS_PER_SEC // FRAMES_PER_SEC
 SAMPDUR = 1_000_000_000 // VALS_PER_SEC
 FRAMEDUR = 1_000_000_000 // FRAMES_PER_SEC
 
@@ -33,7 +33,7 @@ class Drw:
         self.src = src
         self.crt_w = crt_w
         self.crt_h = crt_h
-        src.connect("need-data", self.on_need_data)
+        # src.connect("need-data", self.on_need_data)
         src.connect("enough-data", self.on_enough_data)
         self.image = ImageSurface(FORMAT_ARGB32, self.crt_w, self.crt_h)
         bufsize = len(self.image.get_data())
@@ -89,21 +89,18 @@ class Drw:
                 self.c.rectangle(
                     self.samppos * self.crt_w // VALS_ON_SCREEN,
                     0,
-                    SAMPS_PER_FRAME * self.crt_w // VALS_ON_SCREEN,
+                    VALS_PER_FRAME * self.crt_w // VALS_ON_SCREEN,
                     self.crt_h,
                 )
                 self.c.fill()
                 self.c.set_source_rgb(0.0, 1.0, 0.0)
-                frstart = 0
+                lasttstamp = 0
                 self.c.move_to(
                     self.samppos * self.crt_w // VALS_ON_SCREEN,
                     ymid - self.prevval * yscale,
                 )
-                for tstamp, val in (
-                    next(data) for _ in range(SAMPS_PER_FRAME)
-                ):
-                    if frstart == 0:
-                        frstart = tstamp  # timestamp of the first sample
+                for tstamp, val in (next(data) for _ in range(VALS_PER_FRAME)):
+                    lasttstamp = tstamp  # will use value of the last sample
                     self.samppos += 1
                     self.c.line_to(
                         self.samppos * self.crt_w // VALS_ON_SCREEN,
@@ -135,7 +132,13 @@ class Drw:
                     m.data[:] = imgbytes
                 # print("data copied", (time_ns() - start) // 1_000)
                 buffer.duration = FRAMEDUR
-                buffer.dts = frstart + FRAMEDUR  # Delay by one frame (?)
+                buffer.pts = lasttstamp + FRAMEDUR  # Delay by one frame (?)
+                # print(
+                #     "BUF",
+                #     self.src.get_current_clock_time(),
+                #     buffer.pts,
+                #     buffer.duration,
+                # )
                 # and add the buffer to the list
                 blist.insert(-1, buffer)  # "-1" will append to the end
         except StopIteration:
@@ -158,9 +161,9 @@ class Drw:
         thread is not sending any data. So produce one frame worth of
         zeroes and send one buffer.
         """
-        # print("Need data, time", time_ns())
+        print("Need data, time", time_ns(), "amount", amount)
         start = self.src.get_current_clock_time()
-        self.draw(((start + n * SAMPDUR, 0.0) for n in range(SAMPS_PER_FRAME)))
+        self.draw(((start + n * SAMPDUR, 0.0) for n in range(VALS_PER_FRAME)))
 
     def on_enough_data(self, source):
         print("Uh-oh, got 'enough-data'")
