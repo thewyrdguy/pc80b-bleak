@@ -1,3 +1,7 @@
+# https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/rtmp.md
+# Server: ffplay -listen 1 rtmp://0.0.0.0:9999/stream
+# https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
+
 import gi
 import cairo
 from typing import Any, Optional
@@ -14,7 +18,7 @@ CRT_H = 480
 CAPS = (
     f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
     ",red_mask=-16777216,green_mask=16711680,blue_mask=65280"
-    ",alpha_mask=255,endianness=4321,framerate=1/30"
+    ",alpha_mask=255,endianness=4321,framerate=30/1"
 )
 
 Gst.init()
@@ -28,28 +32,53 @@ class Pipe:
         bus.connect("message::eos", self.on_eos)
         bus.connect("message::error", self.on_error)
 
+        # RMTP audio/video sink
+        self.pl.add(rmtp := Gst.ElementFactory.make("rtmpsink", None))
+        rmtp.set_property("location", "rtmp://localhost:9999/stream live=1")
+        # terminal element
+        self.pl.add(flvm := Gst.ElementFactory.make("flvmux", None))
+        flvm.set_property("streamable", True)
+        flvm.link(rmtp)
+        self.pl.add(x264 := Gst.ElementFactory.make("x264enc", None))
+        x264.set_property("cabac", 1)
+        x264.set_property("bframes", 2)
+        x264.set_property("ref", 1)
+        x264.set_property("tune", "zerolatency")
+        x264.link(flvm)
+        self.pl.add(rvque := Gst.ElementFactory.make("queue", None))
+        # rvque.set_property("max-size-time", 0)
+        # rvque.set_property("max-size-bytes", 0)
+        # rvque.set_property("max-size-buffers", 0)
+        rvque.link(x264)
+
+        # self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
+        # voaacenc.set_property("bitrate", 128000)
+        # voaacenc.link(flvm)
+
         # Local video sink
         gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
         self.paintable = gtksink.get_property("paintable")
         if not self.paintable.props.gl_context:
             raise RuntimeError("Refusing to run without OpenGL")
-        self.pl.add(lvsnk := Gst.ElementFactory.make("glsinkbin", None))
-        lvsnk.set_property("sink", gtksink)
-        lvsnk.set_property("sync", True)
-        self.pl.add(lvque := Gst.ElementFactory.make("queue", None))
-        lvque.set_property("max-size-time", 0)
-        lvque.set_property("max-size-bytes", 0)
-        lvque.set_property("max-size-buffers", 0)
-        lvque.link(lvsnk)
+        # self.pl.add(lvsnk := Gst.ElementFactory.make("glsinkbin", None))
+        # lvsnk.set_property("sink", gtksink)
+        # lvsnk.set_property("sync", True)
+        # self.pl.add(lvque := Gst.ElementFactory.make("queue", None))
+        # # lvque.set_property("max-size-time", 0)
+        # # lvque.set_property("max-size-bytes", 0)
+        # # lvque.set_property("max-size-buffers", 0)
+        # lvque.link(lvsnk)
 
         # Video application source
         self.pl.add(tee := Gst.ElementFactory.make("tee", None))
-        tee.link(lvque)
-        #tee.link(lvsnk)
+        # tee.link(lvque)
+        tee.link(rvque)
         self.pl.add(appsrc := Gst.ElementFactory.make("appsrc", None))
         appsrc.set_property("format", Gst.Format.TIME)
         appsrc.set_property("stream-type", 0)
         appsrc.set_property("is-live", True)
+        # appsrc.set_property("emit-signals", True)
+        appsrc.set_property("leaky-type", 2)  # GstApp.AppStreamType.DOWNSTREAM
         self.drw = Drw(appsrc, CRT_W, CRT_H)
         appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
 
@@ -58,6 +87,7 @@ class Pipe:
         # terminal element
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
         alvl.link(fakesnk)
+        # alvl.link(voaacenc)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
             alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
@@ -66,49 +96,6 @@ class Pipe:
         asrc.link(acnv)
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
-
-        if False:
-            # https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/rtmp.md
-            # Server: ffplay -listen 1 rtmp://0.0.0.0:9999/stream
-            # https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
-            self.pl.add(rtmp := Gst.ElementFactory.make("rtmpsink", None))
-            rtmp.set_property(
-                "location", "rtmp://localhost:9999/stream live=1"
-            )
-            self.pl.add(flvmux := Gst.ElementFactory.make("flvmux", None))
-            flvmux.set_property("streamable", True)
-            flvmux.link(rtmp)
-
-            # self.pl.add(
-            #    voaacenc := Gst.ElementFactory.make("voaacenc", None)
-            # )
-            # voaacenc.set_property("bitrate", 128000)
-            # voaacenc.link(flvmux)
-            # alvl.link(voaacenc)
-
-            # self.pl.add(
-            #    x264enc := Gst.ElementFactory.make("x264enc", None)
-            # )
-            # x264enc.set_property("cabac", 1)
-            # x264enc.set_property("bframes", 2)
-            # x264enc.set_property("ref", 1)
-            # x264enc.link(flvmux)
-            ##self.pl.add(
-            ##    vqueue := Gst.ElementFactory.make("queue", None)
-            ##)
-            ##vqueue.link(x264enc)
-            # self.pl.add(
-            #    vconv := Gst.ElementFactory.make("videoconvert", None)
-            # )
-            # vconv.link(vqueue)
-
-            # appsrc.link_filtered(vconv, Gst.Caps.from_string(CAPS))
-            # self.pl.add(
-            #    tvsrc := Gst.ElementFactory.make("videotestsrc", None)
-            # )
-            # tvsrc.set_property("is-live", 1)
-            # tvsrc.link_filtered(vconv, Gst.Caps.from_string(CAPS))
-            # tvsrc.link(vconv)
 
     def on_eos(self, bus, msg):
         print("End of stream")
