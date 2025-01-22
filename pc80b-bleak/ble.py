@@ -7,7 +7,7 @@ from stat import S_IFIFO
 from sys import argv, stderr, stdout
 from struct import pack, unpack
 from threading import Thread
-from time import time
+from time import time_ns
 from bleak import backends, BleakScanner, BleakClient
 from crcmod import predefined
 
@@ -19,6 +19,7 @@ from .datatypes import (
     EventPc80bTime,
     TestData,
 )
+from .sgn import Signal
 
 DELAY = 3
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
@@ -37,12 +38,12 @@ verbose = False
 
 
 class Receiver:
-    def __init__(self, client, gui):
+    def __init__(self, client, signal):
         self.length = 0
         self.buffer = b""
         self.received = asyncio.Event()
         self.clientref = client
-        self.gui = gui
+        self.signal = signal
 
     async def receive(self, char, val):
         self.buffer += val
@@ -66,7 +67,20 @@ class Receiver:
             if st != 0xA5:
                 print("BAD START", data.hex(), file=stderr)
             ev = mkEv(evt, data[3:])
-            self.gui.report_ecg(ev)
+            # self.signal.report_ecg(ev)
+            if isinstance(ev, (EventPc80bContData, EventPc80bFastData)):
+                start = time_ns() - 6666666 * len(ev.ecgFloats)
+                self.signal.push(
+                    list(
+                        zip(
+                            (
+                                start + i * 6666666
+                                for i in range(len(ev.ecgFloats))
+                            ),
+                            ev.ecgFloats,
+                        )
+                    )
+                )
             if isinstance(ev, EventPc80bTransmode):
                 print("Sending ACK", file=stderr)
                 runcont = bytes.fromhex("a55501") + pack(
@@ -95,11 +109,11 @@ def on_disconnect(client):
     disconnect.set()
 
 
-async def scanner(gui):
+async def scanner(signal):
     global task
     task = asyncio.current_task()
     try:
-        gui.report_ble(False, f"Scanning")
+        signal.report_status(False, f"Scanning")
         async with BleakScanner() as scanner:
             print("Waiting for PC80B-BLE device to appear...", file=stderr)
             async for dev, data in scanner.advertisement_data():
@@ -107,7 +121,7 @@ async def scanner(gui):
                 if dev.name == "PC80B-BLE":
                     # if PC80B_SRV in data.service_uuids:
                     break
-        gui.report_ble(False, f"Found {dev}")
+        signal.report_status(False, f"Found {dev}")
         print(
             "Trying to use device",
             dev,
@@ -156,20 +170,20 @@ async def scanner(gui):
                     dscd[PC80B_NTD].handle
                 )
                 # print("ntdval", ntdval.hex(), file=stderr)
-                gui.report_ble(True, f"Connected {dev} {details}")
+                signal.report_status(True, f"Connected {dev} {details}")
                 print(
                     "All controls are in place, ctl value",
                     ctlval.hex(),
                     file=stderr,
                 )
-                receiver = Receiver(client, gui)
+                receiver = Receiver(client, signal)
                 await client.start_notify(ntf, receiver.receive)
                 # devinfo = bytes.fromhex("5a1106000000000000")
                 # crc = pack("B", crc8(devinfo))
                 # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
                 # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
                 await disconnect.wait()
-                gui.report_ble(False, "Disconnected")
+                signal.report_status(False, "Disconnected")
                 print("Disconnecting", file=stderr)
         except TimeoutError:
             print("Timeout connecting, retry")
@@ -178,19 +192,19 @@ async def scanner(gui):
         return
 
 
-async def testsrc(gui):
+async def testsrc(signal):
     global task
     task = asyncio.current_task()
     print("Launched test source")
-    gui.report_ble(True, "Sending test ladder signal")
+    signal.report_status(True, "Sending test ladder signal")
     step = 0
     try:
         while True:
             if step > 6:
                 step = 0
-            values = [step - 3.0] * 25  # ladder from -3 to +3
-            # print(time(), "Test source of 25", step - 4.0)
-            gui.report_ecg(TestData(ecgFloats=values))
+            start = time_ns() - 166666666  # 1_000_000_000 * 25 // 150
+            values = [(start + i * 6666666, step - 3.0) for i in range(25)]
+            signal.push(values)
             step += 1
             await asyncio.sleep(0.166666666)
     except asyncio.exceptions.CancelledError:
@@ -198,13 +212,13 @@ async def testsrc(gui):
 
 
 class Scanner(Thread):
-    def __init__(self, gui, test: bool = False) -> None:
+    def __init__(self, signal: Signal, test: bool = False) -> None:
         super().__init__()
-        self.gui = gui
+        self.signal = signal
         self.test = test
 
     def run(self) -> None:
-        asyncio.run((testsrc if self.test else scanner)(self.gui))
+        asyncio.run((testsrc if self.test else scanner)(self.signal))
         print("asyncio.run finished")
 
     def stop(self) -> None:

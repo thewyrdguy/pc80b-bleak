@@ -6,6 +6,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gtk
 
+from .sgn import Signal
 from .gst import Pipe
 from .ble import Scanner
 
@@ -48,7 +49,8 @@ class AppWindow(Gtk.ApplicationWindow):
         super().__init__(application=app)
         self.connect("close-request", self.on_close)
         self.level_data = {}
-        self.pipe = Pipe()
+        self.signal = Signal()
+        self.pipe = Pipe(self.signal)
         self.pipe.register_on_level_callback(self.on_level)
 
         kctrl = Gtk.EventControllerKey()
@@ -139,7 +141,7 @@ class AppWindow(Gtk.ApplicationWindow):
         vbox.append(lbbox)
 
         self.pipe.set_state(True)
-        self.datathread = Scanner(self, test=False)
+        self.datathread = Scanner(self.signal, test=False)
         self.datathread.start()
 
     def draw_mon(self, monda, c, w, h, _):
@@ -162,7 +164,7 @@ class AppWindow(Gtk.ApplicationWindow):
     def on_testswitch(self, switch, state):
         self.datathread.stop()
         self.datathread.join()
-        self.datathread = Scanner(self, test=state)
+        self.datathread = Scanner(self.signal, test=state)
         self.datathread.start()
 
     def on_streamurl_activate(self, entry):
@@ -187,13 +189,9 @@ class AppWindow(Gtk.ApplicationWindow):
         self.level_data = kwargs
         self.monda.queue_draw()
 
-    def report_ble(self, connected: bool, state: str) -> None:
-        # show red/green indicator
-        self.label.set_text(state)
-        self.pipe.report_ble(connected, state)
-
-    def report_ecg(self, ev) -> None:
-        self.pipe.report_ecg(ev)
+    # def report_ble(self, connected: bool, state: str) -> None:
+    #     # show red/green indicator
+    #     self.label.set_text(state)
 
 
 class App(Adw.Application):
