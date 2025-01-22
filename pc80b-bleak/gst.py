@@ -6,6 +6,7 @@ import gi
 import cairo
 from typing import Any, Optional
 
+from .sgn import Signal
 from .drw import Drw
 
 gi.require_version("GLib", "2.0")
@@ -25,7 +26,8 @@ Gst.init()
 
 
 class Pipe:
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, signal: Signal) -> None:
+        self.signal = signal
         self.on_level_callback = None
         self.pl = Gst.Pipeline.new()
         bus = self.pl.get_bus()
@@ -51,6 +53,19 @@ class Pipe:
         # rvque.set_property("max-size-buffers", 0)
         rvque.link(x264)
 
+        #######
+        self.pl.add(tvfilt := Gst.ElementFactory.make("capsfilter", None))
+        tvfilt.set_property(
+            "caps",
+            Gst.caps_from_string(
+                "video/x-raw,width=720,height=480,framerate=30/1"
+            ),
+        )
+        tvfilt.link(rvque)
+        self.pl.add(vtsrc := Gst.ElementFactory.make("videotestsrc", None))
+        vtsrc.link(tvfilt)
+        #######
+
         # self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
         # voaacenc.set_property("bitrate", 128000)
         # voaacenc.link(flvm)
@@ -60,26 +75,26 @@ class Pipe:
         self.paintable = gtksink.get_property("paintable")
         if not self.paintable.props.gl_context:
             raise RuntimeError("Refusing to run without OpenGL")
-        # self.pl.add(lvsnk := Gst.ElementFactory.make("glsinkbin", None))
-        # lvsnk.set_property("sink", gtksink)
-        # lvsnk.set_property("sync", True)
-        # self.pl.add(lvque := Gst.ElementFactory.make("queue", None))
-        # # lvque.set_property("max-size-time", 0)
-        # # lvque.set_property("max-size-bytes", 0)
-        # # lvque.set_property("max-size-buffers", 0)
-        # lvque.link(lvsnk)
+        self.pl.add(lvsnk := Gst.ElementFactory.make("glsinkbin", None))
+        lvsnk.set_property("sink", gtksink)
+        lvsnk.set_property("sync", True)
+        self.pl.add(lvque := Gst.ElementFactory.make("queue", None))
+        # lvque.set_property("max-size-time", 0)
+        # lvque.set_property("max-size-bytes", 0)
+        # lvque.set_property("max-size-buffers", 0)
+        lvque.link(lvsnk)
 
         # Video application source
         self.pl.add(tee := Gst.ElementFactory.make("tee", None))
-        # tee.link(lvque)
-        tee.link(rvque)
+        tee.link(lvque)
+        # tee.link(rvque)
         self.pl.add(appsrc := Gst.ElementFactory.make("appsrc", None))
         appsrc.set_property("format", Gst.Format.TIME)
         appsrc.set_property("stream-type", 0)
         appsrc.set_property("is-live", True)
         # appsrc.set_property("emit-signals", True)
         appsrc.set_property("leaky-type", 2)  # GstApp.AppStreamType.DOWNSTREAM
-        self.drw = Drw(appsrc, CRT_W, CRT_H)
+        self.drw = Drw(self.signal, appsrc, CRT_W, CRT_H)
         appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
 
         self.pl.add(fakesnk := Gst.ElementFactory.make("fakesink", None))
@@ -122,9 +137,3 @@ class Pipe:
             self.pl.set_state(Gst.State.PLAYING)
         else:
             self.pl.set_state(Gst.State.PAUSED)
-
-    def report_ble(self, connected: bool, state: str) -> None:
-        self.drw.report_ble(connected, state)
-
-    def report_ecg(self, ev) -> None:
-        self.drw.report_ecg(ev)
