@@ -137,7 +137,7 @@ class Drw:
                 m.data[:] = imgbytes
             # print("data copied", (time_ns() - start) // 1_000)
             buffer.duration = FRAMEDUR
-            buffer.pts = lasttstamp + offset + FRAMEDUR  # Delay by one frame
+            buffer.dts = lasttstamp + offset + FRAMEDUR * 30  # Delay by one frame
             # print(
             #     "BUF",
             #     self.src.get_current_clock_time(),
