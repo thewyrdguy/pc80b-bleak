@@ -1,6 +1,7 @@
 # https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/rtmp.md
 # Server: ffplay -listen 1 rtmp://0.0.0.0:9999/stream
 # https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
+# https://stackoverflow.com/questions/27905606/gstreamer-how-recover-from-rtmpsink-error
 
 import gi
 import cairo
@@ -47,23 +48,25 @@ class Pipe:
         x264.set_property("ref", 1)
         x264.set_property("tune", "zerolatency")
         x264.link(flvm)
+        self.pl.add(vconv := Gst.ElementFactory.make("videoconvert", None))
+        vconv.link(x264)
         self.pl.add(rvque := Gst.ElementFactory.make("queue", None))
         # rvque.set_property("max-size-time", 0)
         # rvque.set_property("max-size-bytes", 0)
         # rvque.set_property("max-size-buffers", 0)
-        rvque.link(x264)
+        rvque.link(vconv)
 
         #######
-        self.pl.add(tvfilt := Gst.ElementFactory.make("capsfilter", None))
-        tvfilt.set_property(
-            "caps",
-            Gst.caps_from_string(
-                "video/x-raw,width=720,height=480,framerate=30/1"
-            ),
-        )
-        tvfilt.link(rvque)
-        self.pl.add(vtsrc := Gst.ElementFactory.make("videotestsrc", None))
-        vtsrc.link(tvfilt)
+        # self.pl.add(tvfilt := Gst.ElementFactory.make("capsfilter", None))
+        # tvfilt.set_property(
+        #     "caps",
+        #     Gst.caps_from_string(
+        #         "video/x-raw,width=720,height=480,framerate=30/1"
+        #     ),
+        # )
+        # tvfilt.link(rvque)
+        # self.pl.add(vtsrc := Gst.ElementFactory.make("videotestsrc", None))
+        # vtsrc.link(tvfilt)
         #######
 
         # self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
@@ -87,7 +90,7 @@ class Pipe:
         # Video application source
         self.pl.add(tee := Gst.ElementFactory.make("tee", None))
         tee.link(lvque)
-        # tee.link(rvque)
+        tee.link(rvque)
         self.pl.add(appsrc := Gst.ElementFactory.make("appsrc", None))
         appsrc.set_property("format", Gst.Format.TIME)
         appsrc.set_property("stream-type", 0)
