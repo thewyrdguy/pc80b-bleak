@@ -69,9 +69,11 @@ class Pipe:
         # vtsrc.link(tvfilt)
         #######
 
-        # self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
-        # voaacenc.set_property("bitrate", 128000)
-        # voaacenc.link(flvm)
+        self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
+        voaacenc.set_property("bitrate", 128000)
+        voaacenc.link(flvm)
+        self.pl.add(laque := Gst.ElementFactory.make("queue", None))
+        laque.link(voaacenc)
 
         # Local video sink
         gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
@@ -100,12 +102,12 @@ class Pipe:
         self.drw = Drw(self.signal, appsrc, CRT_W, CRT_H)
         appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
 
-        self.pl.add(fakesnk := Gst.ElementFactory.make("fakesink", None))
-        fakesnk.set_property("sync", True)
+        # self.pl.add(fakesnk := Gst.ElementFactory.make("fakesink", None))
+        # fakesnk.set_property("sync", True)
         # terminal element
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
-        alvl.link(fakesnk)
-        # alvl.link(voaacenc)
+        # alvl.link(fakesnk)
+        alvl.link(laque)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
             alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
