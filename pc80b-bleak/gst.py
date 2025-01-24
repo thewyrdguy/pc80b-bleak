@@ -37,7 +37,7 @@ class Pipe:
 
         # RMTP audio/video sink
         self.pl.add(rmtp := Gst.ElementFactory.make("rtmpsink", None))
-        rmtp.set_property("location", "rtmp://localhost:9999/stream live=1")
+        rmtp.set_property("location", "rtmp://localhost:1935/stream/live live=1")
         # terminal element
         self.pl.add(flvm := Gst.ElementFactory.make("flvmux", None))
         flvm.set_property("streamable", True)
@@ -51,9 +51,9 @@ class Pipe:
         self.pl.add(vconv := Gst.ElementFactory.make("videoconvert", None))
         vconv.link(x264)
         self.pl.add(rvque := Gst.ElementFactory.make("queue", None))
-        # rvque.set_property("max-size-time", 0)
-        # rvque.set_property("max-size-bytes", 0)
-        # rvque.set_property("max-size-buffers", 0)
+        rvque.set_property("max-size-time", 0)
+        rvque.set_property("max-size-bytes", 0)
+        rvque.set_property("max-size-buffers", 0)
         rvque.link(vconv)
 
         #######
