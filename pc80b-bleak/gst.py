@@ -117,6 +117,12 @@ class Pipe:
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
 
+    def start_broadcast(self, url: str, key: str):
+        print("start broadcast", url, key)
+
+    def stop_broadcast(self):
+        print("stop broadcast")
+
     def on_eos(self, bus, msg):
         print("End of stream")
 
