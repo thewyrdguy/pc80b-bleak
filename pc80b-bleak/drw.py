@@ -69,7 +69,7 @@ class Drw:
         gbytes = GLib.Bytes.new(self.bytes)
         buffer = Gst.Buffer.new_wrapped_bytes(gbytes).copy_deep()
         buffer.duration = FRAMEDUR
-        buffer.pts = self.src.get_current_clock_time()
+        buffer.pts = self.src.get_current_clock_time() + FRAMEDUR * 30
         print("push clearscreen")
         self.src.emit("push-buffer", buffer)
         self.samppos = 0
