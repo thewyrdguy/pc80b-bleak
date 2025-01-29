@@ -70,7 +70,7 @@ class Drw:
         buffer = Gst.Buffer.new_wrapped_bytes(gbytes).copy_deep()
         buffer.duration = FRAMEDUR
         buffer.pts = self.src.get_current_clock_time() + FRAMEDUR * 30
-        print("push clearscreen")
+        # print("push clearscreen")
         self.src.emit("push-buffer", buffer)
         self.samppos = 0
         self.prevval = 0.0
@@ -161,7 +161,7 @@ class Drw:
         thread is not sending any data. So produce one frame worth of
         zeroes and send one buffer.
         """
-        print("Need data, time", time_ns(), "amount", amount)
+        # print("Need data, time", time_ns(), "amount", amount)
         connected, state = self.signal.get_status()
         if connected:
             if self.signal.is_empty():

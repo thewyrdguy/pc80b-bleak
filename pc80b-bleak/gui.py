@@ -93,26 +93,48 @@ class AppWindow(Gtk.ApplicationWindow):
         mbox.append(crtbox)
 
         self.streamurl = Gtk.Entry()
+        self.streamurl.set_hexpand(True)
         # self.streamurl.set_placeholder_text("Enter URL...")
-        self.streamurl.set_text("rtmp://a.rtmp.youtube.com/live2/")
+        self.streamurl.set_placeholder_text("Enter RTMP URL")
+        self.streamurl.set_text("rtmp://localhost:1935/stream/live")
         self.streamurl.set_alignment(0)
         self.streamurl.set_icon_from_icon_name(
             Gtk.EntryIconPosition.SECONDARY, "edit-clear"
         )
         self.streamurl.set_icon_tooltip_markup(
-            Gtk.EntryIconPosition.SECONDARY, "<b>Clear Text</b>"
+            Gtk.EntryIconPosition.SECONDARY, "<b>Clear</b>"
         )
         self.streamurl.set_max_length(48)
-        self.streamurl.connect("icon_press", self.on_streamurl_icon_press)
-        self.streamurl.connect("activate", self.on_streamurl_activate)
+        self.streamurl.connect("icon_press", self.on_clear_icon_press)
+        self.streamurl.connect("activate", self.on_textentry_activate)
+        self.streamkey = Gtk.Entry()
+        self.streamkey.set_hexpand(True)
+        self.streamkey.set_placeholder_text("Enter streaming key")
+        self.streamkey.set_alignment(0)
+        self.streamkey.set_icon_from_icon_name(
+            Gtk.EntryIconPosition.SECONDARY, "edit-clear"
+        )
+        self.streamkey.set_icon_tooltip_markup(
+            Gtk.EntryIconPosition.SECONDARY, "<b>Clear</b>"
+        )
+        self.streamkey.set_max_length(48)
+        self.streamkey.connect("icon_press", self.on_clear_icon_press)
+        self.streamkey.connect("activate", self.on_textentry_activate)
         urlentry = Gtk.Box()
         spacepad(urlentry)
         urlentry.append(self.streamurl)
+        urlentry.append(self.streamkey)
         urlframe = Gtk.Frame()
         urlframe.set_child(urlentry)
         urlbox = Gtk.Box()
         spacepad(urlbox)
         urlbox.append(urlframe)
+        self.bcast = Gtk.Switch()
+        self.bcast.set_halign(Gtk.Align.END)
+        self.bcast.set_valign(Gtk.Align.CENTER)
+        self.bcast.set_state(False)
+        self.bcast.connect("state-set", self.on_bcast)
+        urlbox.append(self.bcast)
         mbox.append(urlbox)
 
         hbox.append(mbox)
@@ -130,7 +152,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
         vbox.append(hbox)
 
-        self.label = Gtk.Label.new("Scanning")
+        self.label = Gtk.Label.new("Uninitialised")
         self.label.set_hexpand(True)
         self.label.set_xalign(0.0)
         lbframe = Gtk.Frame()
@@ -167,16 +189,25 @@ class AppWindow(Gtk.ApplicationWindow):
         self.datathread = Scanner(self.signal, test=state)
         self.datathread.start()
 
-    def on_streamurl_activate(self, entry):
-        print("on_activate", entry)
-        buffer = entry.get_text()
-        print("buffer", buffer)
+    def on_textentry_activate(self, entry):
+        if not self.bcast.get_active():
+            self.bcast.set_active(True)
+
+    def on_bcast(self, entry, state):
+        # print("bcast switch", state, "url", self.streamurl.get_text())
+        if state:
+            self.pipe.start_broadcast(
+                self.streamurl.get_text(), self.streamkey.get_text()
+            )
+        else:
+            self.pipe.stop_broadcast()
+        self.onairframe.set_child(self.onairlbl if state else self.offairlbl)
 
     def on_keypress(self, event, keyval, keycode, state, user):
         if keyval == Gdk.KEY_q and state & Gdk.ModifierType.CONTROL_MASK:
             self.close()
 
-    def on_streamurl_icon_press(self, entry, icon_pos):
+    def on_clear_icon_press(self, entry, icon_pos):
         if icon_pos == Gtk.EntryIconPosition.SECONDARY:
             entry.get_buffer().set_text("", 0)
 
