@@ -36,12 +36,21 @@ class Pipe:
         bus.connect("message::error", self.on_error)
 
         # RMTP audio/video sink
-        self.pl.add(rmtp := Gst.ElementFactory.make("rtmpsink", None))
-        rmtp.set_property("location", "rtmp://localhost:1935/stream/live live=1")
+        self.fakevsnk = Gst.ElementFactory.make("fakesink", None)
+        self.pl.add(self.fakevsnk)
+        self.fakevsnk.set_property("sync", True)
         # terminal element
+        self.rtmp = Gst.ElementFactory.make("rtmpsink", None)
+        self.rtmp.set_property(
+            "location", "rtmp://localhost:1935/stream/live live=1"
+        )
+        # terminal element
+        self.rtee = Gst.ElementFactory.make("tee", None)
+        self.pl.add(self.rtee)
+        self.rtee.link(self.fakevsnk)
         self.pl.add(flvm := Gst.ElementFactory.make("flvmux", None))
         flvm.set_property("streamable", True)
-        flvm.link(rmtp)
+        flvm.link(self.rtee)
         self.pl.add(x264 := Gst.ElementFactory.make("x264enc", None))
         x264.set_property("cabac", 1)
         x264.set_property("bframes", 2)
@@ -102,9 +111,6 @@ class Pipe:
         self.drw = Drw(self.signal, appsrc, CRT_W, CRT_H)
         appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
 
-        # self.pl.add(fakesnk := Gst.ElementFactory.make("fakesink", None))
-        # fakesnk.set_property("sync", True)
-        # terminal element
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
         # alvl.link(fakesnk)
         alvl.link(laque)
@@ -119,9 +125,20 @@ class Pipe:
 
     def start_broadcast(self, url: str, key: str):
         print("start broadcast", url, key)
+        self.rtmp.set_property(
+            "location", f"{url}/{key} live=1"
+        )
+        self.set_state(False)
+        self.pl.add(self.rtmp)
+        self.rtee.link(self.rtmp)
+        self.set_state(True)
 
     def stop_broadcast(self):
         print("stop broadcast")
+        self.set_state(False)
+        self.rtee.unlink(self.rtmp)
+        self.pl.remove(self.rtmp)
+        self.set_state(True)
 
     def on_eos(self, bus, msg):
         print("End of stream")
