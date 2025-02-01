@@ -52,6 +52,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.signal = Signal()
         self.pipe = Pipe(self.signal)
         self.pipe.register_on_level_callback(self.on_level)
+        self.pipe.register_on_error_callback(self.on_gst_error)
 
         kctrl = Gtk.EventControllerKey()
         kctrl.connect("key-pressed", self.on_keypress, None)
@@ -219,6 +220,10 @@ class AppWindow(Gtk.ApplicationWindow):
     def on_level(self, **kwargs: Any) -> None:
         self.level_data = kwargs
         self.monda.queue_draw()
+
+    def on_gst_error(self, error) -> None:
+        self.bcast.set_active(False)
+        self.label.set_text(str(error))
 
     # def report_ble(self, connected: bool, state: str) -> None:
     #     # show red/green indicator

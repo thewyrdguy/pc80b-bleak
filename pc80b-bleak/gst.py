@@ -30,6 +30,7 @@ class Pipe:
     def __init__(self, signal: Signal) -> None:
         self.signal = signal
         self.on_level_callback = None
+        self.on_error_callback = None
         self.pl = Gst.Pipeline.new()
         bus = self.pl.get_bus()
         bus.connect("message::eos", self.on_eos)
@@ -45,6 +46,21 @@ class Pipe:
             "location", "rtmp://localhost:1935/stream/live live=1"
         )
         # terminal element
+        # # Put a guard at the entry to rtmp
+        # oldsink = self.rtmp.get_static_pad("sink")
+        # print("oldsink", oldsink)
+        # sinkpeer = oldsink.get_peer()
+        # print("sinkpeer", sinkpeer)
+        # #sinkpeer.unlink(oldsink)
+        # #sinkpeer.link(newsink)
+        # newsink = Gst.GhostPad("proxypad", oldsink)
+        # print("newsink", newsink)
+        # newsink.set_chain_function_full(self.rtmp_guard)
+        # newsink.activate_mode(Gst.PadMode.PUSH, True)
+        # #self.rtmp.remove_pad(oldsink)
+        # #self.rtmp.add_pad(newsink)
+        # self.rtmp._keep_ref_to_ghost_pad = newsink
+
         self.rtee = Gst.ElementFactory.make("tee", None)
         self.pl.add(self.rtee)
         self.rtee.link(self.fakevsnk)
@@ -64,19 +80,6 @@ class Pipe:
         rvque.set_property("max-size-bytes", 0)
         rvque.set_property("max-size-buffers", 0)
         rvque.link(vconv)
-
-        #######
-        # self.pl.add(tvfilt := Gst.ElementFactory.make("capsfilter", None))
-        # tvfilt.set_property(
-        #     "caps",
-        #     Gst.caps_from_string(
-        #         "video/x-raw,width=720,height=480,framerate=30/1"
-        #     ),
-        # )
-        # tvfilt.link(rvque)
-        # self.pl.add(vtsrc := Gst.ElementFactory.make("videotestsrc", None))
-        # vtsrc.link(tvfilt)
-        #######
 
         self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
         voaacenc.set_property("bitrate", 128000)
@@ -123,11 +126,22 @@ class Pipe:
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
 
+    def rtmp_guard(self, pad: Gst.Pad, _, buffer: Gst.Buffer):
+        # https://stackoverflow.com/a/71950159
+        print("rtmp_guard pad", pad, "buffer", buffer)
+        internal_pad = pad.get_internal()
+        print("internal pad", internal_pad)
+        if (
+            result := internal_pad.push(buffer)
+        ) == Gst.FlowReturn.FLUSHING or result == Gst.FlowReturn.ERROR:
+            print("Restart rtmp after", result)
+            self.rtmp.set_state(Gst.State.NULL)
+            self.rtmp.set_state(Gst.State.PLAYING)
+            return Gst.FlowReturn.OK
+
     def start_broadcast(self, url: str, key: str):
         print("start broadcast", url, key)
-        self.rtmp.set_property(
-            "location", f"{url}/{key} live=1"
-        )
+        self.rtmp.set_property("location", f"{url}/{key} live=1")
         self.set_state(False)
         self.pl.add(self.rtmp)
         self.rtee.link(self.rtmp)
@@ -138,17 +152,29 @@ class Pipe:
         self.set_state(False)
         self.rtee.unlink(self.rtmp)
         self.pl.remove(self.rtmp)
+        self.rtmp.set_state(Gst.State.NULL)
         self.set_state(True)
 
     def on_eos(self, bus, msg):
         print("End of stream")
 
     def on_error(self, bus, msg):
-        error = msg.parse_error()
-        print("ERROR", error)
+        error, debug = msg.parse_error()
+        if (
+            msg.src is self.rtmp
+            and Gst.ResourceError(error.code) == Gst.ResourceError.WRITE
+        ):
+            print("RTMP write error")
+            self.pl.set_state(Gst.State.NULL)
+            self.stop_broadcast()
+        if self.on_error_callback is not None:
+            self.on_error_callback(error)
 
     def register_on_level_callback(self, callback) -> None:
         self.on_level_callback = callback
+
+    def register_on_error_callback(self, callback) -> None:
+        self.on_error_callback = callback
 
     def on_level(self, bus, msg):
         s = msg.get_structure()
