@@ -71,6 +71,7 @@ class Pipe:
         x264.set_property("cabac", 1)
         x264.set_property("bframes", 2)
         x264.set_property("ref", 1)
+        x264.set_property("key-int-max", 100)
         x264.set_property("tune", "zerolatency")
         x264.link(flvm)
         self.pl.add(vconv := Gst.ElementFactory.make("videoconvert", None))
