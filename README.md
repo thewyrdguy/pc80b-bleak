@@ -1,12 +1,11 @@
-# Python script for realtime ECG aquisitin from PC80B-BLE
+# Tool for realtime ECG aquisition from PC80B-BLE device, and live-streaming
 
-Example command to stream to youtube:
+The app receives realitime ECG from the bluetooth recorder, composes
+moving picture of the ECG trace, and streams it to an RTMP server.
+Works with youtube, and should work with twitter/x, twitch, discord,
+and others.
 
-```
-$ pc80b-bleak \
-  | ecgtovideo -r 30 \
-  | ffmpeg -r 30 -f image2pipe -c:v png -i - \
-                 -f pulse -ac 2 -i default \
-                    -codec:a libmp3lame -ar 44100 -threads 6 -b:a 11025 \
-           -r 30 -f flv rtmp://a.rtmp.youtube.com/live2/<KEY>
-```
+Uses Python bindings for GTK4 and Gstreamer.
+
+Note that the recorder must have "wireless" mode enabled
+(and it that mode, it does not save recordings in its storage).
