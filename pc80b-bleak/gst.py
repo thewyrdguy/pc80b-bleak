@@ -141,15 +141,19 @@ class Pipe:
 
     def start_broadcast(self, url: str, key: str):
         print("start broadcast", url, key)
-        self.rtmp.set_property("location", f"{url}/{key} live=1")
+        if key and not url.endswith("/"):
+            durl = url + "/" + key
+        else:
+            durl = url
+        self.rtmp.set_property("location", f"{durl} live=1")
         self.set_state(False)
         self.pl.add(self.rtmp)
         self.rtee.link(self.rtmp)
         self.set_state(True)
 
-    def stop_broadcast(self):
+    def stop_broadcast(self, forced: bool = False):
         print("stop broadcast")
-        self.set_state(False)
+        self.set_state(None if forced else False)
         self.rtee.unlink(self.rtmp)
         self.pl.remove(self.rtmp)
         self.rtmp.set_state(Gst.State.NULL)
@@ -157,16 +161,19 @@ class Pipe:
 
     def on_eos(self, bus, msg):
         print("End of stream")
+        self.pl.set_state(Gst.State.NULL)
+        self.pl.set_state(Gst.State.PLAYING)
 
     def on_error(self, bus, msg):
         error, debug = msg.parse_error()
+        print("ERROR", error, "DEBUG", debug)
         if (
             msg.src is self.rtmp
             and Gst.ResourceError(error.code) == Gst.ResourceError.WRITE
         ):
             print("RTMP write error")
             self.pl.set_state(Gst.State.NULL)
-            self.stop_broadcast()
+            self.stop_broadcast(forced=True)
         if self.on_error_callback is not None:
             self.on_error_callback(error)
 
