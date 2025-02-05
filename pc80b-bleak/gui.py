@@ -4,7 +4,7 @@ from typing import Any
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gtk
+from gi.repository import Adw, Gdk, Gtk, GObject
 
 from .sgn import Signal
 from .gst import Pipe
@@ -93,11 +93,22 @@ class AppWindow(Gtk.ApplicationWindow):
         crtbox.append(frame)
         mbox.append(crtbox)
 
+        model = Gtk.ListStore(GObject.TYPE_STRING)
+        for el in (
+            "rtmp://abuser.cardiobasel.ch/stream/live",
+            "rtmp://a.rtmp.youtube.com/live2",
+            "rtmp://live.twitch.tv/app",
+        ):
+            model.append((el,))
+        completion = Gtk.EntryCompletion()
+        completion.set_minimum_key_length(0)
+        completion.set_model(model)
+        completion.set_text_column(0)
         self.streamurl = Gtk.Entry()
+        self.streamurl.set_completion(completion)
         self.streamurl.set_hexpand(True)
-        # self.streamurl.set_placeholder_text("Enter URL...")
         self.streamurl.set_placeholder_text("Enter RTMP URL")
-        self.streamurl.set_text("rtmp://localhost:1935/stream/live")
+        self.streamurl.set_text("rtmp://a.rtmp.youtube.com/live2")
         self.streamurl.set_alignment(0)
         self.streamurl.set_icon_from_icon_name(
             Gtk.EntryIconPosition.SECONDARY, "edit-clear"
@@ -109,7 +120,6 @@ class AppWindow(Gtk.ApplicationWindow):
         self.streamurl.connect("icon_press", self.on_clear_icon_press)
         self.streamurl.connect("activate", self.on_textentry_activate)
         self.streamkey = Gtk.Entry()
-        self.streamkey.set_hexpand(True)
         self.streamkey.set_placeholder_text("Enter streaming key")
         self.streamkey.set_alignment(0)
         self.streamkey.set_icon_from_icon_name(
@@ -200,8 +210,10 @@ class AppWindow(Gtk.ApplicationWindow):
             self.pipe.start_broadcast(
                 self.streamurl.get_text(), self.streamkey.get_text()
             )
+            self.label.set_text("Broadcast started")
         else:
             self.pipe.stop_broadcast()
+            self.label.set_text("Broadcast stopped")
         self.onairframe.set_child(self.onairlbl if state else self.offairlbl)
 
     def on_keypress(self, event, keyval, keycode, state, user):
