@@ -5,17 +5,19 @@
 
 import gi
 import cairo
-from typing import Any, Optional
+from contextlib import ExitStack
+from typing import Any, Callable, ContextManager, Literal, Optional, Tuple
 
 from .sgn import Signal
 from .drw import Drw
 
-gi.require_version("GLib", "2.0")
 gi.require_version("Gst", "1.0")
-from gi.repository import GLib, Gst
+from gi.repository import Gst
 
 CRT_W = 720
 CRT_H = 480
+
+POOLSIZE = 128
 
 CAPS = (
     f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
@@ -26,11 +28,59 @@ CAPS = (
 Gst.init()
 
 
+class PoolBuf(ContextManager[Tuple[bytes, int, Callable[[int, int], None]]]):
+    def __init__(
+        self,
+        pool: Gst.BufferPool,
+        src: Gst.Element,
+    ) -> None:
+        print("PoolBuf init", pool, src)
+        self.pool = pool
+        self.src = src
+
+    def __enter__(self) -> Tuple[bytes, int, int, Callable[[int, int], None]]:
+        print("Entering poolbuf")
+        res, self.buffer = self.pool.acquire_buffer()
+        if res != Gst.FlowReturn.OK:
+            raise RuntimeError(f"buffer acquisition {res}")
+        with ExitStack() as mmctx:
+            mm = mmctx.enter_context(
+                self.buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE)
+            )
+            self.mmstack = mmctx.pop_all()
+        print(self.__class__.__name__, "giving mapped buffer mem", mm.data)
+        return mm.data, self.src.get_current_clock_time(), self.setstamp
+
+    def setstamp(self, dur: int, ts: int) -> None:
+        print("called setstamp with", dur, ts)
+        self.dur = dur
+        self.ts = ts
+
+    def __exit__(self, *_: Any) -> Literal[False]:
+        print(self.__class__.__name__, "exit, unmapping buffer mem")
+        with self.mmstack:
+            pass
+        print(self.__class__.__name__, "exit, unmapped buffer mem")
+        self.buffer.duration = self.dur
+        self.buffer.pts = self.ts
+        self.src.emit("push-buffer", self.buffer)
+        return False
+
+
 class Pipe:
     def __init__(self, signal: Signal) -> None:
         self.signal = signal
         self.on_level_callback = None
         self.on_error_callback = None
+
+        self.pool = Gst.BufferPool()
+        bufsize = CRT_W * CRT_H * 4  # for FORMAT_ARGB32
+        bpconf = self.pool.get_config()
+        self.pool.config_set_params(bpconf, None, bufsize, POOLSIZE, POOLSIZE)
+        self.pool.set_config(bpconf)
+        if not self.pool.set_active(True):
+            raise RuntimeError("Could not activate buffer pool")
+
         self.pl = Gst.Pipeline.new()
         bus = self.pl.get_bus()
         bus.connect("message::eos", self.on_eos)
@@ -95,7 +145,9 @@ class Pipe:
         appsrc.set_property("is-live", True)
         # appsrc.set_property("emit-signals", True)
         appsrc.set_property("leaky-type", 2)  # GstApp.AppStreamType.DOWNSTREAM
-        self.drw = Drw(self.signal, appsrc, CRT_W, CRT_H)
+        self.drw = Drw(self.signal, lambda: PoolBuf(self.pool, appsrc), CRT_W, CRT_H)
+        appsrc.connect("need-data", self.on_need_data)
+        appsrc.connect("enough-data", self.on_enough_data)
         appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
 
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
@@ -168,3 +220,10 @@ class Pipe:
             self.pl.set_state(Gst.State.PLAYING)
         else:
             self.pl.set_state(Gst.State.PAUSED)
+
+    def on_need_data(self, source, amount):
+        # print("Need data, time", time_ns(), "amount", amount)
+        self.drw.draw()
+
+    def on_enough_data(self, source):
+        print("Uh-oh, got 'enough-data'")
