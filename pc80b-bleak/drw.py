@@ -102,9 +102,11 @@ class Drw:
                         mem, FORMAT_ARGB32, self.crt_w, self.crt_h
                     )
                     c = Context(image)
-                    self.drawcurve(c)
-                    del c
-                    del image
+                    try:
+                        self.drawcurve(c)
+                    finally:
+                        del c
+                        del image
                     setts(FRAMEDUR, laststamp + timeoffset + FRAMEDUR * 30)
         else:
             self.data = deque(
@@ -115,7 +117,9 @@ class Drw:
                     mem, FORMAT_ARGB32, self.crt_w, self.crt_h
                 )
                 c = Context(image)
-                self.clearscreen(c, state)
-                del c
-                del image
+                try:
+                    self.clearscreen(c, state)
+                finally:
+                    del c
+                    del image
                 setts(FRAMEDUR, time_ns() + timeoffset + FRAMEDUR * 30)
