@@ -6,6 +6,7 @@
 import gi
 import cairo
 from contextlib import ExitStack
+from time import time_ns
 from typing import Any, Callable, ContextManager, Literal, Optional, Tuple
 
 from .sgn import Signal
@@ -29,17 +30,17 @@ Gst.init()
 
 
 class PoolBuf(ContextManager[Tuple[bytes, int, Callable[[int, int], None]]]):
+    """Context manager to acquire a buffer from the pool and submit on exit"""
+
     def __init__(
         self,
         pool: Gst.BufferPool,
         src: Gst.Element,
     ) -> None:
-        print("PoolBuf init", pool, src)
         self.pool = pool
         self.src = src
 
-    def __enter__(self) -> Tuple[bytes, int, int, Callable[[int, int], None]]:
-        print("Entering poolbuf")
+    def __enter__(self) -> Tuple[bytes, Callable[[int, int], None]]:
         res, self.buffer = self.pool.acquire_buffer()
         if res != Gst.FlowReturn.OK:
             raise RuntimeError(f"buffer acquisition {res}")
@@ -48,22 +49,21 @@ class PoolBuf(ContextManager[Tuple[bytes, int, Callable[[int, int], None]]]):
                 self.buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE)
             )
             self.mmstack = mmctx.pop_all()
-        print(self.__class__.__name__, "giving mapped buffer mem", mm.data)
-        return mm.data, self.src.get_current_clock_time(), self.setstamp
+        return mm.data, self.setstamp
 
     def setstamp(self, dur: int, ts: int) -> None:
-        print("called setstamp with", dur, ts)
         self.dur = dur
         self.ts = ts
 
-    def __exit__(self, *_: Any) -> Literal[False]:
-        print(self.__class__.__name__, "exit, unmapping buffer mem")
+    def __exit__(self, ec: Any, *_: Any) -> Literal[False]:
         with self.mmstack:
             pass
-        print(self.__class__.__name__, "exit, unmapped buffer mem")
-        self.buffer.duration = self.dur
-        self.buffer.pts = self.ts
-        self.src.emit("push-buffer", self.buffer)
+        if ec is None:
+            self.buffer.duration = self.dur
+            self.buffer.pts = self.ts
+            self.src.emit("push-buffer", self.buffer)
+        else:
+            self.pool.release_buffer(self.buffer)
         return False
 
 
@@ -140,12 +140,15 @@ class Pipe:
         tee.link(lvque)
         tee.link(rvque)
         self.pl.add(appsrc := Gst.ElementFactory.make("appsrc", None))
+        self.src = appsrc
         appsrc.set_property("format", Gst.Format.TIME)
         appsrc.set_property("stream-type", 0)
         appsrc.set_property("is-live", True)
         # appsrc.set_property("emit-signals", True)
         appsrc.set_property("leaky-type", 2)  # GstApp.AppStreamType.DOWNSTREAM
-        self.drw = Drw(self.signal, lambda: PoolBuf(self.pool, appsrc), CRT_W, CRT_H)
+        self.drw = Drw(
+            self.signal, lambda: PoolBuf(self.pool, appsrc), CRT_W, CRT_H
+        )
         appsrc.connect("need-data", self.on_need_data)
         appsrc.connect("enough-data", self.on_enough_data)
         appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
@@ -192,10 +195,11 @@ class Pipe:
 
     def on_error(self, bus, msg):
         error, debug = msg.parse_error()
-        print("ERROR", error, "DEBUG", debug)
         if msg.src is self.rtmp:
-            print("RTMP error", error)
+            print("RTMP ERROR", error, "DEBUG", debug)
             self.stop_broadcast(forced=True)
+        else:
+            print("Non RTMP ERROR", error, "DEBUG", debug)
         if self.on_error_callback is not None:
             self.on_error_callback(error.message)
 
@@ -223,7 +227,7 @@ class Pipe:
 
     def on_need_data(self, source, amount):
         # print("Need data, time", time_ns(), "amount", amount)
-        self.drw.draw()
+        self.drw.draw(self.src.get_current_clock_time() - time_ns())
 
     def on_enough_data(self, source):
         print("Uh-oh, got 'enough-data'")
