@@ -57,12 +57,9 @@ class Drw:
 
     def drawcurve(self, c: Context):
         """
-        Produce video buffers from data that can be 5 to 25 samples.
-        This is called when
-        1. new data arrives from the BLE receiver, or
-        2. gstremer pipeline askes for more buffers (we then draw flatline)
+        Visualize data as a curve in the draw context
         """
-        xscale = self.crt_w // VALS_ON_SCREEN
+        xscale = self.crt_w / VALS_ON_SCREEN
         ymid = self.crt_h / 2
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
         c.set_source_rgb(0.0, 0.0, 0.0)
@@ -70,13 +67,12 @@ class Drw:
         c.fill()
         c.set_source_rgb(0.0, 1.0, 0.0)
         c.set_line_width(4)
-        firstpoint = True
         for x, (tstamp, val) in enumerate(self.data):
-            if firstpoint:
-                c.move_to(x * xscale, ymid - val * yscale)
-                firstpoint = False
-            else:
-                c.line_to(x * xscale, ymid - val * yscale)
+            xpos = (self.samppos + x) % VALS_ON_SCREEN * xscale
+            if xpos:
+                c.line_to(xpos, ymid - val * yscale)
+            else:  # Point zero - move to the left edge
+                c.move_to(xpos, ymid - val * yscale)
         c.stroke()
         c.set_source_rgb(0.2, 0.2, 0.2)
         xpos = self.samppos * xscale
@@ -85,18 +81,23 @@ class Drw:
         c.stroke()
 
     def draw(self, timeoffset: int) -> None:
+        now = time_ns()
+        # print("draw:", timeoffset, "now", now, "diff", timeoffset + now)
         connected, state = self.signal.get_status()
         if connected:
-            # if self.signal.is_empty():
-            #    start = time_ns() - 166666666  # 1_000_000_000 * 25 // 150
-            #    values = [(start + i * 6666666, 0.0) for i in range(25)]
-            #    self.signal.push(values)
+            if self.signal.is_empty():
+                start = time_ns() - SAMPDUR * VALS_PER_FRAME
+                values = [
+                    (start + i * SAMPDUR, 0.0) for i in range(VALS_PER_FRAME)
+                ]
+                self.signal.push(values)
+            count = 0
             while framedata := self.signal.pull(VALS_PER_FRAME):
+                laststamp = framedata[-1][0]
                 self.data.extend(framedata)
                 self.samppos += VALS_PER_FRAME
                 if self.samppos >= VALS_ON_SCREEN:
                     self.samppos = 0
-                laststamp = framedata[-1][0]
                 with self.bufgen() as (mem, setts):
                     image = ImageSurface.create_for_data(
                         mem, FORMAT_ARGB32, self.crt_w, self.crt_h
@@ -107,7 +108,15 @@ class Drw:
                     finally:
                         del c
                         del image
-                    setts(FRAMEDUR, laststamp + timeoffset + FRAMEDUR * 30)
+                    setts(FRAMEDUR, timeoffset + laststamp + FRAMEDUR)
+                    # print(
+                    #    "buffer",
+                    #    FRAMEDUR,
+                    #    "pts",
+                    #    timeoffset + laststamp + 300000000,
+                    # )
+                count += 1
+            # print("Used", count, "buffers")
         else:
             self.data = deque(
                 repeat((0.0, 0.0), VALS_ON_SCREEN), maxlen=VALS_ON_SCREEN
@@ -122,4 +131,5 @@ class Drw:
                 finally:
                     del c
                     del image
-                setts(FRAMEDUR, time_ns() + timeoffset + FRAMEDUR * 30)
+                setts(FRAMEDUR, timeoffset + now + FRAMEDUR)
+                # print("buffer", FRAMEDUR, "pts", timeoffset + now + FRAMEDUR)

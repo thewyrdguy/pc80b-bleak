@@ -59,6 +59,8 @@ class PoolBuf(ContextManager[Tuple[bytes, int, Callable[[int, int], None]]]):
         with self.mmstack:
             pass
         if ec is None:
+            sclk = self.src.get_current_clock_time()
+            # print("timestamping buffer", self.dur, self.ts - sclk)
             self.buffer.duration = self.dur
             self.buffer.pts = self.ts
             self.src.emit("push-buffer", self.buffer)
@@ -144,8 +146,10 @@ class Pipe:
         appsrc.set_property("format", Gst.Format.TIME)
         appsrc.set_property("stream-type", 0)
         appsrc.set_property("is-live", True)
+        appsrc.set_property("max-bytes", 11_059_200)  # Eight buffers
         # appsrc.set_property("emit-signals", True)
-        appsrc.set_property("leaky-type", 2)  # GstApp.AppStreamType.DOWNSTREAM
+        # 2 below is for GstApp.AppStreamType.DOWNSTREAM
+        # appsrc.set_property("leaky-type", 2)
         self.drw = Drw(
             self.signal, lambda: PoolBuf(self.pool, appsrc), CRT_W, CRT_H
         )
