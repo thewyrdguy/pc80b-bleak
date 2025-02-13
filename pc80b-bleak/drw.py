@@ -108,7 +108,7 @@ class Drw:
                     finally:
                         del c
                         del image
-                    setts(FRAMEDUR, timeoffset + laststamp + FRAMEDUR)
+                    setts(FRAMEDUR, timeoffset + laststamp + FRAMEDUR * 15)
                     # print(
                     #    "buffer",
                     #    FRAMEDUR,
@@ -131,5 +131,5 @@ class Drw:
                 finally:
                     del c
                     del image
-                setts(FRAMEDUR, timeoffset + now + FRAMEDUR)
+                setts(FRAMEDUR, timeoffset + now + FRAMEDUR * 15)
                 # print("buffer", FRAMEDUR, "pts", timeoffset + now + FRAMEDUR)

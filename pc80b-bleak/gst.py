@@ -147,6 +147,7 @@ class Pipe:
         appsrc.set_property("stream-type", 0)
         appsrc.set_property("is-live", True)
         appsrc.set_property("max-bytes", 11_059_200)  # Eight buffers
+        appsrc.set_property("min-percent", 5)
         # appsrc.set_property("emit-signals", True)
         # 2 below is for GstApp.AppStreamType.DOWNSTREAM
         # appsrc.set_property("leaky-type", 2)
