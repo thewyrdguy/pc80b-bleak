@@ -68,18 +68,28 @@ class AppWindow(Gtk.ApplicationWindow):
 
         self.monda = Gtk.DrawingArea()
         self.monda.set_size_request(40, CRT_H // 2)
+        self.monda.set_halign(Gtk.Align.CENTER)
+        self.monda.set_valign(Gtk.Align.CENTER)
         self.monda.set_draw_func(self.draw_mon, None)
         monframe = Gtk.Frame()
         monframe.set_child(self.monda)
         testswitch = Gtk.Switch()
+        testswitch.set_halign(Gtk.Align.CENTER)
+        testswitch.set_valign(Gtk.Align.CENTER)
         testswitch.set_active(False)
         testswitch.connect("state-set", self.on_testswitch)
+        delaybtn = Gtk.SpinButton()
+        delaybtn.props.adjustment = Gtk.Adjustment(
+            upper=1000, step_increment=10, page_increment=100
+        )
+        delaybtn.connect("value-changed", self.on_adelay)
         lbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         spacepad(lbox)
         lbox.append(Gtk.Label(label="Test"))
         lbox.append(testswitch)
         lbox.append(Gtk.Label(label="Vol"))
         lbox.append(monframe)
+        lbox.append(delaybtn)
         hbox.append(lbox)
 
         mbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -108,7 +118,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.streamurl.set_completion(completion)
         self.streamurl.set_hexpand(True)
         self.streamurl.set_placeholder_text("Enter RTMP URL")
-        self.streamurl.set_text("rtmp://a.rtmp.youtube.com/live2")
+        self.streamurl.set_text("rtmp://abuser.cardiobasel.ch/stream/live")
         self.streamurl.set_alignment(0)
         self.streamurl.set_icon_from_icon_name(
             Gtk.EntryIconPosition.SECONDARY, "edit-clear"
@@ -199,6 +209,9 @@ class AppWindow(Gtk.ApplicationWindow):
         self.datathread.join()
         self.datathread = Scanner(self.signal, test=state)
         self.datathread.start()
+
+    def on_adelay(self, what):
+        print("delay spinbutton", what.get_value_as_int())
 
     def on_textentry_activate(self, entry):
         if not self.bcast.get_active():

@@ -20,6 +20,8 @@ CRT_H = 480
 
 POOLSIZE = 128
 
+ADELAY = 500_000_000
+
 CAPS = (
     f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
     ",red_mask=-16777216,green_mask=16711680,blue_mask=65280"
@@ -120,8 +122,10 @@ class Pipe:
         self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
         voaacenc.set_property("bitrate", 128000)
         voaacenc.link(flvm)
-        self.pl.add(laque := Gst.ElementFactory.make("queue", None))
-        laque.link(voaacenc)
+        self.laque = Gst.ElementFactory.make("queue", None)
+        self.pl.add(self.laque)
+        # self.laque.set_property("min-threshold-time", ADELAY)
+        self.laque.link(voaacenc)
 
         # Local video sink
         gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
@@ -160,7 +164,7 @@ class Pipe:
 
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
         # alvl.link(fakesnk)
-        alvl.link(laque)
+        alvl.link(self.laque)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
             alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
@@ -169,6 +173,9 @@ class Pipe:
         asrc.link(acnv)
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
+
+    def set_adelay(self, adelay: int):
+        self.laque.set_property("min-threshold-time", adelay * 1_000_000)
 
     def start_broadcast(self, url: str, key: str):
         print("start broadcast", url, key)
