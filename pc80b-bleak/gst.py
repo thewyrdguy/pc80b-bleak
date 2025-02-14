@@ -76,6 +76,7 @@ class Pipe:
         self.signal = signal
         self.on_level_callback = None
         self.on_error_callback = None
+        self.adelay = ADELAY
 
         self.pool = Gst.BufferPool()
         bufsize = CRT_W * CRT_H * 4  # for FORMAT_ARGB32
@@ -121,6 +122,9 @@ class Pipe:
 
         self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
         voaacenc.set_property("bitrate", 128000)
+        sinkpad = voaacenc.get_static_pad("sink")
+        print("sinkpad", sinkpad)
+        sinkpad.add_probe(Gst.PadProbeType.BUFFER, self.pad_probe, None)
         voaacenc.link(flvm)
         self.laque = Gst.ElementFactory.make("queue", None)
         self.pl.add(self.laque)
@@ -174,6 +178,12 @@ class Pipe:
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
 
+    def pad_probe(self, probe, info, udata):
+        buffer = info.get_buffer()
+        # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
+        buffer.pts += self.adelay
+        return Gst.PadProbeReturn.OK
+
     def set_adelay(self, adelay: int):
         self.laque.set_property("min-threshold-time", adelay * 1_000_000)
 
@@ -198,6 +208,13 @@ class Pipe:
             self.pl.remove(self.rtmp)
             self.rtmp.set_state(Gst.State.NULL)
             self.set_state(True)
+
+    def get_adelay(self) -> int:
+        return self.adelay // 1_000_000
+
+    def set_adelay(self, delay_ms: int) -> None:
+        print("set_adelay", delay_ms, "ms")
+        self.adelay = delay_ms * 1_000_000
 
     def on_eos(self, bus, msg):
         print("End of stream")

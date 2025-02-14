@@ -82,6 +82,8 @@ class AppWindow(Gtk.ApplicationWindow):
         delaybtn.props.adjustment = Gtk.Adjustment(
             upper=1000, step_increment=10, page_increment=100
         )
+        delaybtn.set_numeric(True)
+        delaybtn.set_value(self.pipe.get_adelay())
         delaybtn.connect("value-changed", self.on_adelay)
         lbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         spacepad(lbox)
@@ -210,8 +212,9 @@ class AppWindow(Gtk.ApplicationWindow):
         self.datathread = Scanner(self.signal, test=state)
         self.datathread.start()
 
-    def on_adelay(self, what):
-        print("delay spinbutton", what.get_value_as_int())
+    def on_adelay(self, sbtn):
+        # print("delay spinbutton", sbtn.get_value_as_int())
+        self.pipe.set_adelay(sbtn.get_value_as_int())
 
     def on_textentry_activate(self, entry):
         if not self.bcast.get_active():
