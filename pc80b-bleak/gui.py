@@ -80,7 +80,7 @@ class AppWindow(Gtk.ApplicationWindow):
         testswitch.connect("state-set", self.on_testswitch)
         delaybtn = Gtk.SpinButton()
         delaybtn.props.adjustment = Gtk.Adjustment(
-            upper=1000, step_increment=10, page_increment=100
+            upper=2000, step_increment=20, page_increment=200
         )
         delaybtn.set_numeric(True)
         delaybtn.set_value(self.pipe.get_adelay())
@@ -91,6 +91,7 @@ class AppWindow(Gtk.ApplicationWindow):
         lbox.append(testswitch)
         lbox.append(Gtk.Label(label="Vol"))
         lbox.append(monframe)
+        lbox.append(Gtk.Label(label="Delay(ms)"))
         lbox.append(delaybtn)
         hbox.append(lbox)
 

@@ -20,7 +20,7 @@ CRT_H = 480
 
 POOLSIZE = 128
 
-ADELAY = 500_000_000
+ADELAY = 1_000_000_000
 
 CAPS = (
     f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
