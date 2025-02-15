@@ -122,9 +122,9 @@ class Pipe:
 
         self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
         voaacenc.set_property("bitrate", 128000)
-        sinkpad = voaacenc.get_static_pad("sink")
-        print("sinkpad", sinkpad)
-        sinkpad.add_probe(Gst.PadProbeType.BUFFER, self.pad_probe, None)
+        voaacenc.get_static_pad("sink").add_probe(
+            Gst.PadProbeType.BUFFER, self.pad_probe, None
+        )
         voaacenc.link(flvm)
         self.laque = Gst.ElementFactory.make("queue", None)
         self.pl.add(self.laque)
@@ -179,13 +179,12 @@ class Pipe:
         bus.connect("message::element", self.on_level)
 
     def pad_probe(self, probe, info, udata):
-        buffer = info.get_buffer()
+        info.get_buffer().pts += self.adelay
         # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
-        buffer.pts += self.adelay
         return Gst.PadProbeReturn.OK
 
-    def set_adelay(self, adelay: int):
-        self.laque.set_property("min-threshold-time", adelay * 1_000_000)
+    # def set_adelay(self, adelay: int):
+    #     self.laque.set_property("min-threshold-time", adelay * 1_000_000)
 
     def start_broadcast(self, url: str, key: str):
         print("start broadcast", url, key)
