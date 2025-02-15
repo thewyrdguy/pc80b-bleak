@@ -7,6 +7,9 @@ with open("debian/changelog", "r") as clog:
         clog.readline().strip(),
     )[0]
 
+# for compiling gsettings schema:
+# https://askubuntu.com/a/907762
+
 setup(
     name="bluering",
     version=version,
