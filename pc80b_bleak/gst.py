@@ -3,27 +3,33 @@
 # https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
 # https://stackoverflow.com/questions/27905606/gstreamer-how-recover-from-rtmpsink-error
 
-import gi
+from __future__ import annotations
+import gi  # type: ignore [import-untyped]
 import cairo
 from contextlib import ExitStack
 from time import time_ns
-from typing import Any, Callable, ContextManager, Literal, Optional, Tuple
-
-from .sgn import Signal
-from .drw import Drw
+from typing import (
+    Any,
+    Callable,
+    ContextManager,
+    Literal,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 gi.require_version("Gst", "1.0")
-from gi.repository import Gst
+from gi.repository import Gst  # type: ignore [import-untyped]
 
-CRT_W = 720
-CRT_H = 480
+if TYPE_CHECKING:
+    from .sgn import Signal
 
 POOLSIZE = 128
 
 ADELAY = 1_000_000_000
 
 CAPS = (
-    f"video/x-raw,format=RGBA,bpp=32,depth=32,width={CRT_W},height={CRT_H}"
+    "video/x-raw,format=RGBA,bpp=32,depth=32,width={crt_w},height={crt_h}"
     ",red_mask=-16777216,green_mask=16711680,blue_mask=65280"
     ",alpha_mask=255,endianness=4321,framerate=30/1"
 )
@@ -31,18 +37,18 @@ CAPS = (
 Gst.init()
 
 
-class PoolBuf(ContextManager[Tuple[bytes, int, Callable[[int, int], None]]]):
+class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
     """Context manager to acquire a buffer from the pool and submit on exit"""
 
     def __init__(
         self,
         pool: Gst.BufferPool,
-        src: Gst.Element,
+        lst: Gst.BufferList,
     ) -> None:
         self.pool = pool
-        self.src = src
+        self.lst = lst
 
-    def __enter__(self) -> Tuple[bytes, Callable[[int, int], None]]:
+    def __enter__(self) -> Tuple[memoryview, Callable[[int, int], None]]:
         res, self.buffer = self.pool.acquire_buffer()
         if res != Gst.FlowReturn.OK:
             raise RuntimeError(f"buffer acquisition {res}")
@@ -61,25 +67,57 @@ class PoolBuf(ContextManager[Tuple[bytes, int, Callable[[int, int], None]]]):
         with self.mmstack:
             pass
         if ec is None:
-            sclk = self.src.get_current_clock_time()
+            # sclk = self.src.get_current_clock_time()
             # print("timestamping buffer", self.dur, self.ts - sclk)
             self.buffer.duration = self.dur
             self.buffer.pts = self.ts
-            self.src.emit("push-buffer", self.buffer)
+            self.lst.insert(-1, self.buffer)  # "-1" will append to the end
         else:
             self.pool.release_buffer(self.buffer)
         return False
 
 
+class BufList(ContextManager[Callable[[], PoolBuf]]):
+    def __init__(
+        self,
+        pool: Gst.BufferPool,
+        src: Gst.Element,
+    ) -> None:
+        self.pool = pool
+        self.src = src
+
+    def __enter__(self) -> Callable[[], PoolBuf]:
+        self.lst = Gst.BufferList()
+        return self.bufmaker
+
+    def __exit__(self, ex, *_) -> Literal[False]:
+        if ex is None:
+            self.src.emit("push-buffer-list", self.lst)
+        return False
+
+    def bufmaker(self) -> PoolBuf:
+        return PoolBuf(self.pool, self.lst)
+
+
 class Pipe:
-    def __init__(self, signal: Signal) -> None:
-        self.signal = signal
-        self.on_level_callback = None
-        self.on_error_callback = None
+    def __init__(
+        self,
+        crt_w: int,
+        crt_h: int,
+        *,
+        on_level: Callable[..., None],
+        on_error: Callable[..., None],
+    ) -> None:
+        self.on_level_gui = on_level
+        self.on_error_gui = on_error
+        # The following must be set by register_data_callbacks()
+        self.on_need_data_sgn = lambda: None
+        self.on_enough_data_sgn = lambda: None
+        self.signal: Optional[Signal] = None
         self.adelay = ADELAY
 
         self.pool = Gst.BufferPool()
-        bufsize = CRT_W * CRT_H * 4  # for FORMAT_ARGB32
+        bufsize = crt_w * crt_h * 4  # for FORMAT_ARGB32
         bpconf = self.pool.get_config()
         self.pool.config_set_params(bpconf, None, bufsize, POOLSIZE, POOLSIZE)
         self.pool.set_config(bpconf)
@@ -159,12 +197,12 @@ class Pipe:
         # appsrc.set_property("emit-signals", True)
         # 2 below is for GstApp.AppStreamType.DOWNSTREAM
         # appsrc.set_property("leaky-type", 2)
-        self.drw = Drw(
-            self.signal, lambda: PoolBuf(self.pool, appsrc), CRT_W, CRT_H
-        )
         appsrc.connect("need-data", self.on_need_data)
         appsrc.connect("enough-data", self.on_enough_data)
-        appsrc.link_filtered(tee, Gst.Caps.from_string(CAPS))
+        appsrc.link_filtered(
+            tee,
+            Gst.Caps.from_string(CAPS.format(crt_w=crt_w, crt_h=crt_h)),
+        )
 
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
         # alvl.link(fakesnk)
@@ -228,22 +266,12 @@ class Pipe:
             self.stop_broadcast(forced=True)
         else:
             print("Non RTMP ERROR", error, "DEBUG", debug)
-        if self.on_error_callback is not None:
-            self.on_error_callback(error.message)
-
-    def register_on_level_callback(self, callback) -> None:
-        self.on_level_callback = callback
-
-    def register_on_error_callback(self, callback) -> None:
-        self.on_error_callback = callback
+        self.on_error_gui(error.message)
 
     def on_level(self, bus, msg):
         s = msg.get_structure()
         kwargs = {k: s.get_value(k) for k in ("rms", "peak", "decay")}
-        if self.on_level_callback is not None:
-            self.on_level_callback(**kwargs)
-        else:
-            print("LEVEL", kwargs)
+        self.on_level_gui(**kwargs)
 
     def set_state(self, state: Optional[bool]):
         if state is None:
@@ -255,7 +283,14 @@ class Pipe:
 
     def on_need_data(self, source, amount):
         # print("Need data, time", time_ns(), "amount", amount)
-        self.drw.draw(self.src.get_current_clock_time() - time_ns())
+        self.signal.on_need_data(source, amount)
 
     def on_enough_data(self, source):
-        print("Uh-oh, got 'enough-data'")
+        # print("Uh-oh, got 'enough-data'")
+        self.signal.on_enough_data(source)
+
+    def register_signal(self, signal: Signal):
+        self.signal = signal
+
+    def listmaker(self) -> BufList:
+        return BufList(self.pool, self.src)

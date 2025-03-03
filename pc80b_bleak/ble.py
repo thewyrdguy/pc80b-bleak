@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from __future__ import annotations
 import asyncio
 from getopt import getopt
 from os import mknod, unlink, write
@@ -9,17 +10,21 @@ from struct import pack, unpack
 from threading import Thread
 from time import time_ns
 from bleak import backends, BleakScanner, BleakClient
-from crcmod import predefined
+from crcmod import predefined  # type: ignore [import-untyped]
+from typing import List, TYPE_CHECKING
 
 from .datatypes import (
     mkEv,
+    Event,
     EventPc80bContData,
     EventPc80bFastData,
     EventPc80bTransmode,
     EventPc80bTime,
     TestData,
 )
-from .sgn import Signal
+
+if TYPE_CHECKING:
+    from .sgn import Signal
 
 DELAY = 3
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
@@ -67,20 +72,7 @@ class Receiver:
             if st != 0xA5:
                 print("BAD START", data.hex(), file=stderr)
             ev = mkEv(evt, data[3:])
-            # self.signal.report_ecg(ev)
-            if isinstance(ev, (EventPc80bContData, EventPc80bFastData)):
-                start = time_ns() - 6666666 * len(ev.ecgFloats)
-                self.signal.push(
-                    list(
-                        zip(
-                            (
-                                start + i * 6666666
-                                for i in range(len(ev.ecgFloats))
-                            ),
-                            ev.ecgFloats,
-                        )
-                    )
-                )
+            self.signal.report_data(ev)
             if isinstance(ev, EventPc80bTransmode):
                 print("Sending ACK", file=stderr)
                 runcont = bytes.fromhex("a55501") + pack(
@@ -192,6 +184,24 @@ async def scanner(signal):
         return
 
 
+class TestEvent(Event):
+    ev = 0xFF
+
+    def __init__(self, floats: List[float]) -> None:
+        self.data = b""
+        self.fin = False
+        self.seqNo = 0
+        self.hr = 0
+        self.gain = 0
+        self.channel = 0
+        self.mmode = 0
+        self.mstage = 0
+        self.leadoff = True
+        self.datatype = 0
+        self.mstage = 0
+        self.ecgFloats = floats
+
+
 async def testsrc(signal):
     global task
     task = asyncio.current_task()
@@ -204,7 +214,7 @@ async def testsrc(signal):
                 step = 0
             start = time_ns() - 166666666  # 1_000_000_000 * 25 // 150
             values = [(start + i * 6666666, step - 3.0) for i in range(25)]
-            signal.push(values)
+            signal.report_data(TestEvent(values))
             step += 1
             await asyncio.sleep(0.166666666)
     except asyncio.exceptions.CancelledError:
@@ -212,7 +222,7 @@ async def testsrc(signal):
 
 
 class Scanner(Thread):
-    def __init__(self, signal: Signal, test: bool = False) -> None:
+    def __init__(self, signal: Signal, test: bool) -> None:
         super().__init__()
         self.signal = signal
         self.test = test

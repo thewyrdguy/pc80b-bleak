@@ -1,17 +1,22 @@
-import gi
+import gi  # type: ignore [import-untyped]
 import cairo
-from typing import Any
+from typing import Any, Dict, List
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gtk, GObject
+from gi.repository import (  # type: ignore [import-untyped]
+    Adw,
+    Gdk,
+    Gtk,
+    GObject,
+)
 
 from .sgn import Signal
 from .gst import Pipe
-from .ble import Scanner
 
 CRT_W = 720
 CRT_H = 480
+
 CSS = """
 .onair {
     font-weight: bold;
@@ -25,13 +30,6 @@ CSS = """
 """
 
 Gtk.init()
-_css = Gtk.CssProvider()
-_css.load_from_data(CSS)
-Gtk.StyleContext.add_provider_for_display(
-    Gdk.Display.get_default(),
-    _css,
-    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-)
 
 
 def spacepad(what: Gtk.Widget):
@@ -48,11 +46,14 @@ class AppWindow(Gtk.ApplicationWindow):
         self.kwargs = kwargs
         super().__init__(application=app)
         self.connect("close-request", self.on_close)
-        self.level_data = {}
-        self.signal = Signal()
-        self.pipe = Pipe(self.signal)
-        self.pipe.register_on_level_callback(self.on_level)
-        self.pipe.register_on_error_callback(self.on_gst_error)
+
+        self.level_data: Dict[str, List[float]] = {}
+        self.signal = Signal(CRT_W, CRT_H)
+        self.pipe = Pipe(
+            CRT_W, CRT_H, on_level=self.on_level, on_error=self.on_gst_error
+        )
+        self.signal.register_pipe(self.pipe)
+        self.pipe.register_signal(self.signal)
 
         kctrl = Gtk.EventControllerKey()
         kctrl.connect("key-pressed", self.on_keypress, None)
@@ -187,8 +188,7 @@ class AppWindow(Gtk.ApplicationWindow):
         vbox.append(lbbox)
 
         self.pipe.set_state(True)
-        self.datathread = Scanner(self.signal, test=False)
-        self.datathread.start()
+        self.signal.start(False)
 
     def draw_mon(self, monda, c, w, h, _):
         maxh = h - 20
@@ -207,11 +207,8 @@ class AppWindow(Gtk.ApplicationWindow):
             c.rectangle(10 + lr * 14, 10 + maxh - lvl, 10, lvl)
             c.fill()
 
-    def on_testswitch(self, switch, state):
-        self.datathread.stop()
-        self.datathread.join()
-        self.datathread = Scanner(self.signal, test=state)
-        self.datathread.start()
+    def on_testswitch(self, switch: Gtk.Widget, state: bool) -> None:
+        self.signal.start(state)
 
     def on_adelay(self, sbtn):
         # print("delay spinbutton", sbtn.get_value_as_int())
@@ -242,21 +239,16 @@ class AppWindow(Gtk.ApplicationWindow):
             entry.get_buffer().set_text("", 0)
 
     def on_close(self, _) -> None:
-        self.datathread.stop()
-        self.datathread.join()
+        self.signal.stop()
         self.pipe.set_state(None)
 
-    def on_level(self, **kwargs: Any) -> None:
+    def on_level(self, **kwargs: List[float]) -> None:
         self.level_data = kwargs
         self.monda.queue_draw()
 
     def on_gst_error(self, error) -> None:
         self.bcast.set_active(False)
         self.label.set_text(str(error))
-
-    # def report_ble(self, connected: bool, state: str) -> None:
-    #     # show red/green indicator
-    #     self.label.set_text(state)
 
 
 class App(Adw.Application):
@@ -265,6 +257,13 @@ class App(Adw.Application):
         self.kwargs = kwargs
         super().__init__()
         self.get_style_manager().set_color_scheme(Adw.ColorScheme.PREFER_DARK)
+        css = Gtk.CssProvider()
+        css.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
         self.connect("activate", self.on_activate)
         self.connect("shutdown", self.on_shutdown)
 

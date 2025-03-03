@@ -1,8 +1,30 @@
+from enum import Enum
 from inspect import isclass
 from sys import stderr
 from struct import error, unpack
 from datetime import datetime
 from typing import ClassVar, NamedTuple
+
+
+class Channel(Enum):
+    detecting = 0
+    internal = 1
+    external = 2
+
+
+class MMode(Enum):
+    detecting = 0
+    fast = 1
+    continuous = 2
+
+
+class MStage(Enum):
+    detecting = 0
+    preparing = 1
+    measuring = 2
+    analyzing = 3
+    result = 4
+    stop = 5
 
 
 class Event:
@@ -109,25 +131,12 @@ class EventPc80bFastData(Event):
         self.seqNo, xgain, cmsh, self.hr, ldt = unpack("<HBBBB", data[:6])
         #    0, 1    2      3         4    5
         self.gain = (xgain & 0x70) >> 4  # three bits
-        self.channel = {0: "detecting", 1: "internal", 2: "external"}.get(
-            (cmsh & 0xC0) >> 6, "<?>"
-        )  # two bits
-        self.mmode = {0: "detecting", 1: "fast", 2: "continuous"}.get(
-            (cmsh & 0x30) >> 4, "???"
-        )  # two bits
-        self.mstage = {
-            0: "detecting",
-            1: "preparing",
-            2: "measuring",
-            3: "analyzing",
-            4: "result",
-            5: "stop",
-        }.get(
-            cmsh & 0x0F, "???"
-        )  # four bits
+        self.channel = Channel((cmsh & 0xC0) >> 6)  # two bits
+        self.mmode = MMode((cmsh & 0x30) >> 4)  # two bits
+        self.mstage = MStage(cmsh & 0x0F)  # four bits
         self.leadoff = bool(ldt >> 7)
         self.datatype = ldt & 0x07  # three bits
-        if self.mstage in ("analyzing", "result", "stop"):
+        if self.mstage in (MStage.analyzing, MStage.result, MStage.stop):
             self.fin = True
             self.ecgFloats = []
         else:
