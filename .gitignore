@@ -2,7 +2,7 @@
 debian/*debhelper*
 debian/*.substvars
 debian/files
-debian/ecgble/
+debian/pc80b-bleak/
 .pybuild
 build
-ecgble.egg-info
+pc80b_bleak.egg-info/

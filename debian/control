@@ -1,4 +1,4 @@
-Source: pc80b-ble
+Source: pc80b-bleak
 Maintainer: Peter Wyrd <thewyrdguy@gmail.com>
 Uploaders: Peter Wyrd <thewyrdguy@gmail.com>
 Priority: optional
@@ -7,17 +7,18 @@ Build-Depends: black,
                debhelper-compat (= 12),
                dh-python,
                mypy,
+               pylint,
                python3-all,
                python3-setuptools
 Standards-Version: 4.5.1
 X-Python-Version: >= 3.6
-Homepage: https://github.com/thewyrdguy/pc80b-ble/
+Homepage: https://github.com/thewyrdguy/pc80b-bleak/
 X-Description: Application to read and render realtime ECG
  GTK4 / Gstreamer / bleak application to read and render realtime ECG
  from PC80B-BLE recorder and produce video stream that can be sent to
  a streaming service.
 
-Package: pc80b-ble
+Package: pc80b-bleak
 Architecture: any
 Section: python
 Depends: python3-gi,
@@ -26,7 +27,7 @@ Depends: python3-gi,
          gstreamer1.0-plugins-bad,
          python3-crcmod,
          ${misc:Depends},
-         ${shlibs:Depends},
+         ${python3:Depends},
 Description: Application to read and render realtime ECG
  GTK4 / Gstreamer / bleak application to read and render realtime ECG
  from PC80B-BLE recorder and produce video stream that can be sent to

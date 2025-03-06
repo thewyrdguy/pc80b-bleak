@@ -9,6 +9,8 @@ class TypeCheck(TestCase):
             self.fail("mypy not installed.")
         cmd = [
             "mypy",
+            "--cache-dir",
+            "/dev/null",
             # "--strict",
             "pc80b_bleak",
             "test",

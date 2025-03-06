@@ -1,1 +1,5 @@
-ecgble (0.01) experimental; urgency=medium
+pc80b-bleak (0.01) UNRELEASED; urgency=medium
+
+  * Initial release
+
+ -- Peter Wyrd <thewyrdguy@gmail.com>  Thu, 06 Mar 2025 22:53:00 +0100

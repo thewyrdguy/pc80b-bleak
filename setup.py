@@ -13,7 +13,7 @@ with open("debian/changelog", "r") as clog:
 setup(
     name="pc80b-bleak",
     version=version,
-    description="Tool to read realtime ECG from PC-80B",
+    description="Tool to live stream ECG from PC-80B with sound",
     url="https://www.github.com/thewyrdguy/pc80b-bleak",
     author="Peter Wyrd",
     author_email="thewyrdguy@gmail.com",
