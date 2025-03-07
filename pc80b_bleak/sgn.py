@@ -97,7 +97,7 @@ class Signal:
                         finally:
                             del c
                             del image
-                        setts(FRAMEDUR, now + i * FRAMEDUR)
+                        setts(FRAMEDUR, i * FRAMEDUR)
         else:
             print(event)
 
@@ -116,14 +116,14 @@ class Signal:
                 try:
                     if self.status[0]:
                         self.drw.drawcurve(
-                            c, FrameMeta(), repeat(0.0, VALS_PER_FRAME), 0
+                            c, FrameMeta(), repeat(0.0, VALS_ON_SCREEN), 0
                         )
                     else:
                         self.drw.clearscreen(c, self.status[1])
                 finally:
                     del c
                     del image
-                setts(FRAMEDUR, time_ns())
+                setts(FRAMEDUR, 0)
 
     def on_enough_data(self, source: Gst.Element) -> None:
         print("Uh-oh, got 'enough-data'")

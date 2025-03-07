@@ -44,9 +44,11 @@ class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
         self,
         pool: Gst.BufferPool,
         lst: Gst.BufferList,
+        sclk: int,
     ) -> None:
         self.pool = pool
         self.lst = lst
+        self.sclk = sclk
 
     def __enter__(self) -> Tuple[memoryview, Callable[[int, int], None]]:
         res, self.buffer = self.pool.acquire_buffer()
@@ -67,10 +69,9 @@ class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
         with self.mmstack:
             pass
         if ec is None:
-            # sclk = self.src.get_current_clock_time()
             # print("timestamping buffer", self.dur, self.ts - sclk)
             self.buffer.duration = self.dur
-            self.buffer.pts = self.ts
+            self.buffer.pts = self.sclk + self.ts
             self.lst.insert(-1, self.buffer)  # "-1" will append to the end
         else:
             self.pool.release_buffer(self.buffer)
@@ -85,6 +86,7 @@ class BufList(ContextManager[Callable[[], PoolBuf]]):
     ) -> None:
         self.pool = pool
         self.src = src
+        self.sclk = src.get_current_clock_time()
 
     def __enter__(self) -> Callable[[], PoolBuf]:
         self.lst = Gst.BufferList()
@@ -96,7 +98,7 @@ class BufList(ContextManager[Callable[[], PoolBuf]]):
         return False
 
     def bufmaker(self) -> PoolBuf:
-        return PoolBuf(self.pool, self.lst)
+        return PoolBuf(self.pool, self.lst, self.sclk)
 
 
 class Pipe:

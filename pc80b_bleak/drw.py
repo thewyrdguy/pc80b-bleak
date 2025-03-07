@@ -1,5 +1,6 @@
 """Draw display picture"""
 
+from __future__ import annotations
 from cairo import (
     Context,
     ImageSurface,

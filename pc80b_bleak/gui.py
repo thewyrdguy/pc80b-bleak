@@ -1,3 +1,4 @@
+from __future__ import annotations
 import gi  # type: ignore [import-untyped]
 from cairo import Context, Surface
 from typing import Any, Dict, List, Literal
