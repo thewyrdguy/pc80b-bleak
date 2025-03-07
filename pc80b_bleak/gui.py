@@ -1,6 +1,6 @@
 import gi  # type: ignore [import-untyped]
-import cairo
-from typing import Any, Dict, List
+from cairo import Context, Surface
+from typing import Any, Dict, List, Literal
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -32,7 +32,7 @@ CSS = """
 Gtk.init()
 
 
-def spacepad(what: Gtk.Widget):
+def spacepad(what: Gtk.Widget) -> None:
     what.set_spacing(5)
     what.set_margin_top(5)
     what.set_margin_bottom(5)
@@ -40,8 +40,10 @@ def spacepad(what: Gtk.Widget):
     what.set_margin_end(5)
 
 
-class AppWindow(Gtk.ApplicationWindow):
-    def __init__(self, app, *args: Any, **kwargs: Any) -> None:
+class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
+    def __init__(
+        self, app: Adw.Application, *args: Any, **kwargs: Any
+    ) -> None:
         self.args = args
         self.kwargs = kwargs
         super().__init__(application=app)
@@ -131,7 +133,7 @@ class AppWindow(Gtk.ApplicationWindow):
             Gtk.EntryIconPosition.SECONDARY, "<b>Clear</b>"
         )
         self.streamurl.set_max_length(48)
-        self.streamurl.connect("icon_press", self.on_clear_icon_press)
+        self.streamurl.connect("icon-press", self.on_clear_icon_press)
         self.streamurl.connect("activate", self.on_textentry_activate)
         self.streamkey = Gtk.Entry()
         self.streamkey.set_placeholder_text("Enter streaming key")
@@ -143,7 +145,7 @@ class AppWindow(Gtk.ApplicationWindow):
             Gtk.EntryIconPosition.SECONDARY, "<b>Clear</b>"
         )
         self.streamkey.set_max_length(48)
-        self.streamkey.connect("icon_press", self.on_clear_icon_press)
+        self.streamkey.connect("icon-press", self.on_clear_icon_press)
         self.streamkey.connect("activate", self.on_textentry_activate)
         urlentry = Gtk.Box()
         spacepad(urlentry)
@@ -190,7 +192,14 @@ class AppWindow(Gtk.ApplicationWindow):
         self.pipe.set_state(True)
         self.signal.start(False)
 
-    def draw_mon(self, monda, c, w, h, _):
+    def draw_mon(
+        self,
+        monda: Gtk.DrawingArea,
+        c: Context[Surface],
+        w: int,
+        h: int,
+        udata: Literal[None],
+    ) -> None:
         maxh = h - 20
         c.set_source_rgb(0, 0, 0)
         c.rectangle(5, 5, w - 10, h - 10)
@@ -210,15 +219,15 @@ class AppWindow(Gtk.ApplicationWindow):
     def on_testswitch(self, switch: Gtk.Widget, state: bool) -> None:
         self.signal.start(state)
 
-    def on_adelay(self, sbtn):
+    def on_adelay(self, sbtn: Gtk.Widget) -> None:
         # print("delay spinbutton", sbtn.get_value_as_int())
         self.pipe.set_adelay(sbtn.get_value_as_int())
 
-    def on_textentry_activate(self, entry):
+    def on_textentry_activate(self, entry: Gtk.Widget) -> None:
         if not self.bcast.get_active():
             self.bcast.set_active(True)
 
-    def on_bcast(self, entry, state):
+    def on_bcast(self, entry: Gtk.Widget, state: bool) -> None:
         # print("bcast switch", state, "url", self.streamurl.get_text())
         if state:
             self.pipe.start_broadcast(
@@ -230,15 +239,24 @@ class AppWindow(Gtk.ApplicationWindow):
             self.label.set_text("Broadcast stopped")
         self.onairframe.set_child(self.onairlbl if state else self.offairlbl)
 
-    def on_keypress(self, event, keyval, keycode, state, user):
+    def on_keypress(
+        self,
+        event: Gtk.Event,
+        keyval: int,
+        keycode: int,
+        state: Gdk.ModifierType,
+        udata: Literal[None],
+    ) -> None:
         if keyval == Gdk.KEY_q and state & Gdk.ModifierType.CONTROL_MASK:
             self.close()
 
-    def on_clear_icon_press(self, entry, icon_pos):
+    def on_clear_icon_press(
+        self, entry: Gtk.Widget, icon_pos: Gtk.EntryIconPosition
+    ) -> None:
         if icon_pos == Gtk.EntryIconPosition.SECONDARY:
             entry.get_buffer().set_text("", 0)
 
-    def on_close(self, _) -> None:
+    def on_close(self, _: Any) -> None:
         self.signal.stop()
         self.pipe.set_state(None)
 
@@ -246,13 +264,13 @@ class AppWindow(Gtk.ApplicationWindow):
         self.level_data = kwargs
         self.monda.queue_draw()
 
-    def on_gst_error(self, error) -> None:
+    def on_gst_error(self, error: Gtk.Error) -> None:
         self.bcast.set_active(False)
         self.label.set_text(str(error))
 
 
-class App(Adw.Application):
-    def __init__(self, *args, **kwargs):
+class App(Adw.Application):  # type: ignore [misc] # no stubs
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.args = args
         self.kwargs = kwargs
         super().__init__()
@@ -272,5 +290,5 @@ class App(Adw.Application):
         self.win = AppWindow(self, *self.args, **self.kwargs)
         self.win.present()
 
-    def on_shutdown(self, _):
+    def on_shutdown(self, _: Any) -> None:
         self.win.close()

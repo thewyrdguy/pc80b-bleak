@@ -45,7 +45,7 @@ class Drw:
         self.crt_h = crt_h
         self.vals_on_screen = vals_on_screen
 
-    def clearscreen(self, c: Context, text: str) -> None:
+    def clearscreen(self, c: Context[ImageSurface], text: str) -> None:
         c.set_source_rgb(0.0, 0.0, 0.0)
         c.rectangle(0, 0, self.crt_w, self.crt_h)
         c.fill()
@@ -57,8 +57,12 @@ class Drw:
         c.show_text(text)
 
     def drawcurve(
-        self, c: Context, fmeta: FrameMeta, data: Iterable, samppos: int
-    ):
+        self,
+        c: Context[ImageSurface],
+        fmeta: FrameMeta,
+        data: Iterable[float],
+        samppos: int,
+    ) -> None:
         """
         Visualize data as a curve in the draw context
         """

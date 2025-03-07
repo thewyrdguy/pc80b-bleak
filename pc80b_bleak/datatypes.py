@@ -3,7 +3,7 @@ from inspect import isclass
 from sys import stderr
 from struct import error, unpack
 from datetime import datetime
-from typing import ClassVar, NamedTuple
+from typing import ClassVar, Dict, List, NamedTuple, Type
 
 
 class Channel(Enum):
@@ -31,7 +31,7 @@ class Event:
     ev: ClassVar[int]
     data: bytes = b""
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: bytes) -> None:
         self.data = data
 
     def __repr__(self) -> str:
@@ -154,7 +154,7 @@ class EventPc80bHeartbeat(Event):
     ev = 0xFF
 
 
-CLASSES = {
+CLASSES: Dict[int, Type[Event]] = {
     cls.ev: cls
     for nm, cls in locals().items()
     if isclass(cls)
@@ -163,12 +163,12 @@ CLASSES = {
 }
 
 
-def mkEv(ev, data):
+def mkEv(ev: int, data: bytes) -> Event:
     if ev in CLASSES:
         return CLASSES[ev](data)
-    return f"EventPc80b???(0x{ev:02x}:{data.hex()} )"
+    raise RuntimeError(f"EventPc80b???(0x{ev:02x}:{data.hex()} )")
 
 
 class TestData(Event):
-    def __init__(self, ecgFloats) -> None:
+    def __init__(self, ecgFloats: List[float]) -> None:
         self.ecgFloats = ecgFloats

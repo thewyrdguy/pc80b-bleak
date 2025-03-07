@@ -90,7 +90,7 @@ class BufList(ContextManager[Callable[[], PoolBuf]]):
         self.lst = Gst.BufferList()
         return self.bufmaker
 
-    def __exit__(self, ex, *_) -> Literal[False]:
+    def __exit__(self, ex: Any, *_: Any) -> Literal[False]:
         if ex is None:
             self.src.emit("push-buffer-list", self.lst)
         return False
@@ -216,7 +216,12 @@ class Pipe:
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
 
-    def pad_probe(self, probe, info, udata):
+    def pad_probe(
+        self,
+        probe: Gst.PadProbeType,
+        info: Gst.PadProbeInfo,
+        udata: Literal[None],
+    ) -> Gst.PadProbeReturn:
         info.get_buffer().pts += self.adelay
         # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
         return Gst.PadProbeReturn.OK
@@ -224,7 +229,7 @@ class Pipe:
     # def set_adelay(self, adelay: int):
     #     self.laque.set_property("min-threshold-time", adelay * 1_000_000)
 
-    def start_broadcast(self, url: str, key: str):
+    def start_broadcast(self, url: str, key: str) -> None:
         print("start broadcast", url, key)
         if key and not url.endswith("/"):
             durl = url + "/" + key
@@ -236,7 +241,7 @@ class Pipe:
         self.rtee.link(self.rtmp)
         self.set_state(True)
 
-    def stop_broadcast(self, forced: bool = False):
+    def stop_broadcast(self, forced: bool = False) -> None:
         print("stop broadcast")
         if self.rtmp.get_state(0).state is Gst.State.PLAYING:
             print("was playing, unlink and reset rtmp sink, forced", forced)
@@ -253,13 +258,11 @@ class Pipe:
         print("set_adelay", delay_ms, "ms")
         self.adelay = delay_ms * 1_000_000
 
-    def on_eos(self, bus, msg):
+    def on_eos(self, bus: Gst.Bus, msg: Gst.Message) -> None:
         print("End of stream")
         self.stop_broadcast(forced=True)
-        if self.on_error_callback is not None:
-            self.on_error_callback("Remote stopped receiving (RTMP EOS)")
 
-    def on_error(self, bus, msg):
+    def on_error(self, bus: Gst.Bus, msg: Gst.Message) -> None:
         error, debug = msg.parse_error()
         if msg.src is self.rtmp:
             print("RTMP ERROR", error, "DEBUG", debug)
@@ -268,12 +271,12 @@ class Pipe:
             print("Non RTMP ERROR", error, "DEBUG", debug)
         self.on_error_gui(error.message)
 
-    def on_level(self, bus, msg):
+    def on_level(self, bus: Gst.Bus, msg: Gst.Message) -> None:
         s = msg.get_structure()
         kwargs = {k: s.get_value(k) for k in ("rms", "peak", "decay")}
         self.on_level_gui(**kwargs)
 
-    def set_state(self, state: Optional[bool]):
+    def set_state(self, state: Optional[bool]) -> None:
         if state is None:
             self.pl.set_state(Gst.State.NULL)
         elif state:
@@ -281,15 +284,19 @@ class Pipe:
         else:
             self.pl.set_state(Gst.State.PAUSED)
 
-    def on_need_data(self, source, amount):
-        # print("Need data, time", time_ns(), "amount", amount)
-        self.signal.on_need_data(source, amount)
+    def on_need_data(self, source: Gst.Element, amount: int) -> None:
+        if self.signal is None:
+            print("Need data, time", time_ns(), "amount", amount)
+        else:
+            self.signal.on_need_data(source, amount)
 
-    def on_enough_data(self, source):
-        # print("Uh-oh, got 'enough-data'")
-        self.signal.on_enough_data(source)
+    def on_enough_data(self, source: Gst.Element) -> None:
+        if self.signal is None:
+            print("Uh-oh, got 'enough-data'")
+        else:
+            self.signal.on_enough_data(source)
 
-    def register_signal(self, signal: Signal):
+    def register_signal(self, signal: Signal) -> None:
         self.signal = signal
 
     def listmaker(self) -> BufList:

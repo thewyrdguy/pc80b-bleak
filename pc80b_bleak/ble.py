@@ -10,8 +10,9 @@ from struct import pack, unpack
 from threading import Thread
 from time import time_ns
 from bleak import backends, BleakScanner, BleakClient
+from bleak.backends.characteristic import BleakGATTCharacteristic
 from crcmod import predefined  # type: ignore [import-untyped]
-from typing import List, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 
 from .datatypes import (
     mkEv,
@@ -43,14 +44,14 @@ verbose = False
 
 
 class Receiver:
-    def __init__(self, client, signal):
+    def __init__(self, client: BleakClient, signal: Signal) -> None:
         self.length = 0
         self.buffer = b""
         self.received = asyncio.Event()
         self.clientref = client
         self.signal = signal
 
-    async def receive(self, char, val):
+    async def receive(self, char: BleakGATTCharacteristic, val: bytes) -> None:
         self.buffer += val
         while len(self.buffer) > self.length:
             if len(self.buffer) < 3:
@@ -78,10 +79,10 @@ class Receiver:
                 runcont = bytes.fromhex("a55501") + pack(
                     "B", 0x01 if ev.transtype else 0x00
                 )
-                crc = pack("B", crc8(runcont))
-                print("SENDING:", runcont.hex(), crc.hex(), file=stderr)
+                bcrc = pack("B", crc8(runcont))
+                print("SENDING:", runcont.hex(), bcrc.hex(), file=stderr)
                 await self.clientref.write_gatt_char(
-                    PC80B_OUT, runcont + crc, response=True
+                    PC80B_OUT, runcont + bcrc, response=True
                 )
             elif isinstance(ev, EventPc80bContData):
                 if ev.fin or (ev.seqNo % 64 == 0):
@@ -89,19 +90,19 @@ class Receiver:
                     cdack = (
                         bytes.fromhex("a5aa02") + ev.seqNo.to_bytes() + b"\0"
                     )
-                    crc = pack("B", crc8(cdack))
-                    print("SENDING:", cdack.hex(), crc.hex(), file=stderr)
+                    bcrc = pack("B", crc8(cdack))
+                    print("SENDING:", cdack.hex(), bcrc.hex(), file=stderr)
                     await self.clientref.write_gatt_char(
-                        PC80B_OUT, cdack + crc, response=True
+                        PC80B_OUT, cdack + bcrc, response=True
                     )
 
 
-def on_disconnect(client):
+def on_disconnect(client: BleakClient) -> None:
     print("Disconnect callback")
     disconnect.set()
 
 
-async def scanner(signal):
+async def scanner(signal: Signal) -> None:
     global task
     task = asyncio.current_task()
     try:
@@ -202,7 +203,7 @@ class TestEvent(Event):
         self.ecgFloats = floats
 
 
-async def testsrc(signal):
+async def testsrc(signal: Signal) -> None:
     global task
     task = asyncio.current_task()
     print("Launched test source")
@@ -212,8 +213,7 @@ async def testsrc(signal):
         while True:
             if step > 6:
                 step = 0
-            start = time_ns() - 166666666  # 1_000_000_000 * 25 // 150
-            values = [(start + i * 6666666, step - 3.0) for i in range(25)]
+            values = [step - 3.0 for i in range(25)]
             signal.report_data(TestEvent(values))
             step += 1
             await asyncio.sleep(0.166666666)
@@ -245,14 +245,14 @@ if __name__ == "__main__":
     opts = dict(topts)
     verbose = "-v" in opts
 
-    class Gui:
-        def report_ble(self, connected, sts) -> None:
+    class PseudoSignal(Signal):
+        def report_ble(self, connected: bool, sts: Tuple[int, str]) -> None:
             print("report_ble", sts)
 
-        def report_ecg(self, ev) -> None:
+        def report_ecg(self, ev: Event) -> None:
             print("report_ecg", ev)
 
     try:
-        asyncio.run(scanner(Gui()))
+        asyncio.run(scanner(PseudoSignal(0, 0)))
     except KeyboardInterrupt:
         print("Exit", file=stderr)

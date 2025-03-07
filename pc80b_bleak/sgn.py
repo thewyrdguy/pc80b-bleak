@@ -22,6 +22,11 @@ from .datatypes import (
 from .drw import Drw, FrameMeta
 from .gst import Pipe
 
+import gi  # type: ignore [import-untyped]
+
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst  # type: ignore [import-untyped]
+
 FRAMES_PER_SEC = 30
 VALS_PER_SEC = 150
 SECS_ON_SCREEN = 3
@@ -96,11 +101,11 @@ class Signal:
         else:
             print(event)
 
-    def register_pipe(self, pipe: "Pipe"):
+    def register_pipe(self, pipe: Pipe) -> None:
         self.pipe = pipe
         self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN)
 
-    def on_need_data(self, source, amount):
+    def on_need_data(self, source: Gst.Element, amount: int) -> None:
         print("Need data, time", time_ns(), "source", source, "amount", amount)
         with self.pipe.listmaker() as dispense:
             with dispense() as (mem, setts):
@@ -110,7 +115,9 @@ class Signal:
                 c = Context(image)
                 try:
                     if self.status[0]:
-                        self.drw.drawcurve(c, zero_data)
+                        self.drw.drawcurve(
+                            c, FrameMeta(), repeat(0.0, VALS_PER_FRAME), 0
+                        )
                     else:
                         self.drw.clearscreen(c, self.status[1])
                 finally:
@@ -118,5 +125,5 @@ class Signal:
                     del image
                 setts(FRAMEDUR, time_ns())
 
-    def on_enough_data(self, source):
+    def on_enough_data(self, source: Gst.Element) -> None:
         print("Uh-oh, got 'enough-data'")

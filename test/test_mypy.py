@@ -11,7 +11,7 @@ class TypeCheck(TestCase):
             "mypy",
             "--cache-dir",
             "/dev/null",
-            # "--strict",
+            "--strict",
             "pc80b_bleak",
             "test",
         ]
