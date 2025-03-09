@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 POOLSIZE = 128
 
-ADELAY = 1_000_000_000
+ADELAY = 0  # 1_000_000_000
 
 CAPS = (
     "video/x-raw,format=RGBA,bpp=32,depth=32,width={crt_w},height={crt_h}"

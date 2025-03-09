@@ -10,7 +10,7 @@ from cairo import (
     FORMAT_ARGB32,
 )
 
-from .ble import Scanner
+from .ble import Scanner, TestEvent
 from .datatypes import (
     Event,
     EventPc80bContData,
@@ -66,7 +66,9 @@ class Signal:
         self.status = (receiving, details)
 
     def report_data(self, event: Event) -> None:
-        if isinstance(event, (EventPc80bContData, EventPc80bFastData)):
+        if isinstance(
+            event, (EventPc80bContData, EventPc80bFastData, TestEvent)
+        ):
             if event.fin:
                 # clean up something? Change status?
                 return
@@ -77,7 +79,6 @@ class Signal:
                     if hasattr(event, k)
                 }
             )
-            now = time_ns()
             with self.pipe.listmaker() as dispense:
                 for i in range(len(event.ecgFloats) // VALS_PER_FRAME):
                     o = i * VALS_PER_FRAME
@@ -98,15 +99,25 @@ class Signal:
                             del c
                             del image
                         setts(FRAMEDUR, i * FRAMEDUR)
+                        # print("buf", i, "with ts", i * FRAMEDUR)
+            # print("buflist sent")
         else:
-            print(event)
+            print("unhandled", event)
 
     def register_pipe(self, pipe: Pipe) -> None:
         self.pipe = pipe
         self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN)
 
     def on_need_data(self, source: Gst.Element, amount: int) -> None:
-        print("Need data, time", time_ns(), "source", source, "amount", amount)
+        print(
+            "Need data, time",
+            time_ns(),
+            "source",
+            source.get_current_clock_time(),
+            "amount",
+            amount,
+        )
+
         with self.pipe.listmaker() as dispense:
             with dispense() as (mem, setts):
                 image = ImageSurface.create_for_data(
