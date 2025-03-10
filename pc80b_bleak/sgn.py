@@ -98,7 +98,7 @@ class Signal:
                         finally:
                             del c
                             del image
-                        setts(FRAMEDUR, i * FRAMEDUR)
+                        setts(FRAMEDUR, (i + 15) * FRAMEDUR)
                         # print("buf", i, "with ts", i * FRAMEDUR)
             # print("buflist sent")
         else:
