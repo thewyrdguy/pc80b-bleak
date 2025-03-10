@@ -82,7 +82,7 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         testswitch.set_valign(Gtk.Align.CENTER)
         testswitch.set_active(False)
         testswitch.connect("state-set", self.on_testswitch)
-        delaybtn = Gtk.SpinButton()
+        delaybtn = Gtk.SpinButton(orientation=Gtk.Orientation.VERTICAL)
         delaybtn.props.adjustment = Gtk.Adjustment(
             lower=-500, upper=1500, step_increment=20, page_increment=200
         )
@@ -95,8 +95,9 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         lbox.append(testswitch)
         lbox.append(Gtk.Label(label="Vol"))
         lbox.append(monframe)
-        lbox.append(Gtk.Label(label="Delay(ms)"))
+        lbox.append(Gtk.Label(label="Delay"))
         lbox.append(delaybtn)
+        lbox.append(Gtk.Label(label="(ms)"))
         hbox.append(lbox)
 
         mbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -169,9 +170,9 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
 
         rbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         spacepad(rbox)
-        self.onairlbl = Gtk.Label(label="On Air")
+        self.onairlbl = Gtk.Label(label="On\nAir")
         self.onairlbl.add_css_class("onair")
-        self.offairlbl = Gtk.Label(label="Off Air")
+        self.offairlbl = Gtk.Label(label="Off\nAir")
         self.offairlbl.add_css_class("offair")
         self.onairframe = Gtk.Frame()
         self.onairframe.set_child(self.offairlbl)
