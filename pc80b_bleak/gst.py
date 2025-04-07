@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 POOLSIZE = 128
 
-ADELAY = 500_000_000  # Half a second
+ADELAY = 1_200_000_000
 
 CAPS = (
     "video/x-raw,format=RGBA,bpp=32,depth=32,width={crt_w},height={crt_h}"
@@ -227,9 +227,6 @@ class Pipe:
         info.get_buffer().pts += self.adelay
         # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
         return Gst.PadProbeReturn.OK
-
-    # def set_adelay(self, adelay: int):
-    #     self.laque.set_property("min-threshold-time", adelay * 1_000_000)
 
     def start_broadcast(self, url: str, key: str) -> None:
         print("start broadcast", url, key)

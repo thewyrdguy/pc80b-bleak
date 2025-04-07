@@ -84,7 +84,7 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         testswitch.connect("state-set", self.on_testswitch)
         delaybtn = Gtk.SpinButton(orientation=Gtk.Orientation.VERTICAL)
         delaybtn.props.adjustment = Gtk.Adjustment(
-            lower=-500, upper=1500, step_increment=20, page_increment=200
+            lower=500, upper=1500, step_increment=20, page_increment=200
         )
         delaybtn.set_numeric(True)
         delaybtn.set_value(self.pipe.get_adelay())
