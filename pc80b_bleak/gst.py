@@ -224,8 +224,10 @@ class Pipe:
         info: Gst.PadProbeInfo,
         udata: Literal[None],
     ) -> Gst.PadProbeReturn:
-        info.get_buffer().pts += self.adelay
+        buffer = info.get_buffer()
         # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
+        buffer.make_writable()
+        buffer.pts += self.adelay
         return Gst.PadProbeReturn.OK
 
     def start_broadcast(self, url: str, key: str) -> None:
