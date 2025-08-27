@@ -153,6 +153,16 @@ class EventPc80bFastData(Event):
 class EventPc80bHeartbeat(Event):
     ev = 0xFF
 
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.batt = data[0]
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"(batt={self.batt})"
+        )
+
 
 CLASSES: Dict[int, Type[Event]] = {
     cls.ev: cls

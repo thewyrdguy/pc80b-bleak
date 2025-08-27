@@ -8,7 +8,7 @@ from stat import S_IFIFO
 from sys import argv, stderr, stdout
 from struct import pack, unpack
 from threading import Thread
-from time import time_ns
+from time import time
 from bleak import backends, BleakScanner, BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from crcmod import predefined  # type: ignore [import-untyped]
@@ -50,6 +50,7 @@ class Receiver:
         self.received = asyncio.Event()
         self.clientref = client
         self.signal = signal
+        self.last_time = 0.0
 
     async def receive(self, char: BleakGATTCharacteristic, val: bytes) -> None:
         self.buffer += val
@@ -95,6 +96,16 @@ class Receiver:
                     await self.clientref.write_gatt_char(
                         PC80B_OUT, cdack + bcrc, response=True
                     )
+
+            now = time()
+            if now - self.last_time > 10:
+                self.last_time = now
+                hb = bytes.fromhex("a5ff0100")
+                bcrc = pack("B", crc8(hb))
+                print("SENDING:", hb.hex(), bcrc.hex(), file=stderr)
+                await self.clientref.write_gatt_char(
+                    PC80B_OUT, hb + bcrc, response=True
+                )
 
 
 def on_disconnect(client: BleakClient) -> None:

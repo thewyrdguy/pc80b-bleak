@@ -7,6 +7,7 @@ from cairo import (
     FORMAT_ARGB32,
     FONT_SLANT_NORMAL,
     FONT_WEIGHT_BOLD,
+    FONT_WEIGHT_NORMAL,
 )
 from datetime import datetime
 from enum import Enum
@@ -24,7 +25,8 @@ from .datatypes import Channel, MMode, MStage
 
 
 class FrameMeta(NamedTuple):
-    bat: int = 0
+    dtime: datetime = datetime(1,1,1)
+    battery: int = 0
     hr: int = 0
     leadoff: bool = True
     gain: int = 0
@@ -87,3 +89,10 @@ class Drw:
         c.move_to(xpos, 0)
         c.line_to(xpos, self.crt_h)
         c.stroke()
+
+        text = repr(fmeta)
+        c.select_font_face("sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL)
+        c.set_font_size(12)
+        c.move_to(20, 20)
+        c.set_source_rgb(1.0, 1.0, 1.0)
+        c.show_text(text)

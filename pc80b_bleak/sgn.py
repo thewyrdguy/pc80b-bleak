@@ -1,6 +1,7 @@
 """Conduit for passing received data to the consumer"""
 
 from collections import deque
+from datetime import datetime
 from itertools import repeat
 from time import time_ns
 from typing import Optional, Tuple
@@ -15,6 +16,8 @@ from .datatypes import (
     Event,
     EventPc80bContData,
     EventPc80bFastData,
+    EventPc80bHeartbeat,
+    EventPc80bTime,
     Channel,
     MMode,
     MStage,
@@ -45,6 +48,8 @@ class Signal:
         self.status = (False, "Uninitialised")
         self.data = deque(repeat(0.0, VALS_ON_SCREEN), maxlen=VALS_ON_SCREEN)
         self.samppos = 0
+        self.battery = 0
+        self.dtime = datetime(1,1,1)
 
     def cleardata(self) -> None:
         self.samppos = 0
@@ -73,6 +78,8 @@ class Signal:
                 # clean up something? Change status?
                 return
             fmeta = FrameMeta(
+                dtime = self.dtime,
+                battery = self.battery,
                 **{
                     k: getattr(event, k)
                     for k in FrameMeta._fields
@@ -101,6 +108,11 @@ class Signal:
                         setts(FRAMEDUR, (i + 15) * FRAMEDUR)
                         # print("buf", i, "with ts", i * FRAMEDUR)
             # print("buflist sent")
+        elif isinstance(event, EventPc80bHeartbeat):
+            self.battery = event.batt
+        elif isinstance(event, EventPc80bTime):
+            self.dtime = event.datetime
+            print("time event", self.dtime)
         else:
             print("unhandled", event)
 
