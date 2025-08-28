@@ -49,7 +49,7 @@ class Signal:
         self.data = deque(repeat(0.0, VALS_ON_SCREEN), maxlen=VALS_ON_SCREEN)
         self.samppos = 0
         self.battery = 0
-        self.dtime = datetime(1,1,1)
+        self.dtime = datetime(1, 1, 1)
 
     def cleardata(self) -> None:
         self.samppos = 0
@@ -78,13 +78,13 @@ class Signal:
                 # clean up something? Change status?
                 return
             fmeta = FrameMeta(
-                dtime = self.dtime,
-                battery = self.battery,
+                dtime=self.dtime,
+                battery=self.battery,
                 **{
                     k: getattr(event, k)
                     for k in FrameMeta._fields
                     if hasattr(event, k)
-                }
+                },
             )
             with self.pipe.listmaker() as dispense:
                 for i in range(len(event.ecgFloats) // VALS_PER_FRAME):

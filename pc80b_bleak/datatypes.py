@@ -158,10 +158,7 @@ class EventPc80bHeartbeat(Event):
         self.batt = data[0]
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}"
-            f"(batt={self.batt})"
-        )
+        return f"{self.__class__.__name__}" f"(batt={self.batt})"
 
 
 CLASSES: Dict[int, Type[Event]] = {
