@@ -228,7 +228,8 @@ class Pipe:
     ) -> Gst.PadProbeReturn:
         buffer = info.get_buffer()
         # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
-        buffer.make_writable()
+        if hasattr(buffer, "make_writable"):
+            buffer.make_writable()
         buffer.pts += self.adelay
         return Gst.PadProbeReturn.OK
 
