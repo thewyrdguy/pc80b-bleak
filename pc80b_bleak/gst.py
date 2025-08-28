@@ -54,12 +54,14 @@ class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
         res, self.buffer = self.pool.acquire_buffer()
         if res != Gst.FlowReturn.OK:
             raise RuntimeError(f"buffer acquisition {res}")
-        with ExitStack() as mmctx:
-            mm = mmctx.enter_context(
-                self.buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE)
-            )
-            self.mmstack = mmctx.pop_all()
-        return mm.data, self.setstamp
+        minf = self.buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE)
+        if hasattr(minf, "__enter__"):  # in newer python3-gst it is a CM
+            self.mmstack = minf
+        else:  # provide our own stack
+            with ExitStack() as mmctx:
+                mm = mmctx.enter_context(minf)
+                self.mmstack = mmctx.pop_all()
+        return minf.data, self.setstamp
 
     def setstamp(self, dur: int, ts: int) -> None:
         self.dur = dur
