@@ -9,7 +9,7 @@ from cairo import (
     FONT_WEIGHT_BOLD,
     FONT_WEIGHT_NORMAL,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from time import time_ns
 from typing import (
@@ -25,7 +25,7 @@ from .datatypes import Channel, MMode, MStage
 
 
 class FrameMeta(NamedTuple):
-    dtime: datetime = datetime(1,1,1)
+    dtime: datetime = datetime(1970, 1, 1)
     battery: int = 0
     hr: int = 0
     leadoff: bool = True
@@ -35,6 +35,16 @@ class FrameMeta(NamedTuple):
     mmode: MMode = MMode.detecting
     mstage: MStage = MStage.detecting
     datatype: int = 0
+
+
+def drawtext(
+    c: Context[ImageSurface], x: int, y: int, text: str, fsize: int = 16
+) -> None:
+    c.select_font_face("sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL)
+    c.set_font_size(fsize)
+    c.move_to(x, y)
+    c.set_source_rgb(1.0, 1.0, 1.0)
+    c.show_text(text)
 
 
 class Drw:
@@ -90,9 +100,18 @@ class Drw:
         c.line_to(xpos, self.crt_h)
         c.stroke()
 
-        text = repr(fmeta)
-        c.select_font_face("sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL)
-        c.set_font_size(12)
-        c.move_to(20, 20)
-        c.set_source_rgb(1.0, 1.0, 1.0)
-        c.show_text(text)
+        drawtext(
+            c,
+            20,
+            20,
+            fmeta.dtime.astimezone(timezone.utc).strftime(
+                "%Y-%m-%d %H:%M:%S UTC"
+            ),
+        )
+        drawtext(
+            c,
+            self.crt_w - 70,
+            40,
+            str(fmeta.hr) if fmeta.hr else "---",
+            fsize=32,
+        )

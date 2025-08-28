@@ -121,14 +121,14 @@ class Signal:
         self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN)
 
     def on_need_data(self, source: Gst.Element, amount: int) -> None:
-        print(
-            "Need data, time",
-            time_ns(),
-            "source",
-            source.get_current_clock_time(),
-            "amount",
-            amount,
-        )
+        # print(
+        #     "Need data, time",
+        #     time_ns(),
+        #     "source",
+        #     source.get_current_clock_time(),
+        #     "amount",
+        #     amount,
+        # )
 
         with self.pipe.listmaker() as dispense:
             with dispense() as (mem, setts):
