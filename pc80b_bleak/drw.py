@@ -25,7 +25,7 @@ from .datatypes import Channel, MMode, MStage
 
 
 class FrameMeta(NamedTuple):
-    dtime: datetime = datetime(1970, 1, 1)
+    dtime: datetime = datetime.now()
     battery: int = 0
     hr: int = 0
     leadoff: bool = True

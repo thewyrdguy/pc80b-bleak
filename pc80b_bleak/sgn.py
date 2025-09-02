@@ -49,7 +49,7 @@ class Signal:
         self.data = deque(repeat(0.0, VALS_ON_SCREEN), maxlen=VALS_ON_SCREEN)
         self.samppos = 0
         self.battery = 0
-        self.dtime = datetime(1, 1, 1)
+        self.dtime = datetime.now()
 
     def cleardata(self) -> None:
         self.samppos = 0
