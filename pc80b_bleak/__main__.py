@@ -1,6 +1,6 @@
 """Command line entry point for pc80b-bleak streamer"""
 
-from getopt import getopt
+from getopt import getopt  # pylint: disable=deprecated-module
 from sys import argv
 
 # pylint: disable=relative-beyond-top-level  # Why is it complaining?...

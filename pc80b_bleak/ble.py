@@ -1,31 +1,29 @@
-#!/usr/bin/python3
+"""BLE receiver"""
 
 from __future__ import annotations
 import asyncio
-from getopt import getopt
-from os import mknod, unlink, write
-from stat import S_IFIFO
-from sys import argv, stderr, stdout
+from getopt import getopt  # pylint: disable=deprecated-module
+from sys import argv, stderr
 from struct import pack, unpack
 from threading import Thread
 from time import time
-from bleak import backends, BleakScanner, BleakClient
+from typing import List, Tuple, TYPE_CHECKING
+
+from bleak import BleakScanner, BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from crcmod import predefined  # type: ignore [import-untyped]
-from typing import List, Tuple, TYPE_CHECKING
 
 from .datatypes import (
     mkEv,
     Event,
     EventPc80bContData,
-    EventPc80bFastData,
     EventPc80bTransmode,
-    EventPc80bTime,
-    TestData,
 )
 
 if TYPE_CHECKING:
     from .sgn import Signal
+
+# pylint: disable=missing-function-docstring
 
 DELAY = 3
 DEVINFO = "0000180a-0000-1000-8000-00805f9b34fb"
@@ -43,7 +41,9 @@ task = None
 verbose = False
 
 
-class Receiver:
+class Receiver:  # pylint: disable=too-few-public-methods
+    """Container for BLE receive async function"""
+
     def __init__(self, client: BleakClient, signal: Signal) -> None:
         self.length = 0
         self.buffer = b""
@@ -52,7 +52,7 @@ class Receiver:
         self.signal = signal
         self.last_time = 0.0
 
-    async def receive(self, char: BleakGATTCharacteristic, val: bytes) -> None:
+    async def receive(self, _ch: BleakGATTCharacteristic, val: bytes) -> None:
         self.buffer += val
         while len(self.buffer) > self.length:
             if len(self.buffer) < 3:
@@ -109,18 +109,19 @@ class Receiver:
 
 
 def on_disconnect(client: BleakClient) -> None:
-    print("Disconnect callback")
+    print("Disconnect callback", client)
     disconnect.set()
 
 
 async def scanner(signal: Signal) -> None:
-    global task
+    global task  # pylint: disable=global-statement
     task = asyncio.current_task()
     try:
-        signal.report_status(False, f"Scanning")
-        async with BleakScanner() as scanner:
+        signal.report_status(False, "Scanning")
+        # pylint: disable=undefined-loop-variable
+        async with BleakScanner() as bscanner:
             print("Waiting for PC80B-BLE device to appear...", file=stderr)
-            async for dev, data in scanner.advertisement_data():
+            async for dev, data in bscanner.advertisement_data():
                 # print(dev, "\n", data, "\n", file=stderr)
                 if dev.name == "PC80B-BLE":
                     # if PC80B_SRV in data.service_uuids:
@@ -153,6 +154,7 @@ async def scanner(signal: Signal) -> None:
                 # print("srvd", srvd, file=stderr)
                 details = ", ".join(
                     [
+                        # pylint: disable=line-too-long
                         f"{char.description.split()[0]}: "
                         f"{(await client.read_gatt_char(char)).decode('ascii')}"
                         for char in srvd[DEVINFO].characteristics
@@ -166,13 +168,13 @@ async def scanner(signal: Signal) -> None:
                 ctlval = await client.read_gatt_char(PC80B_CTL)
                 # print("ctlval", ctlval.hex(), file=stderr)
                 ntf = chrd[PC80B_NTF]
-                dscd = {
-                    descriptor.uuid: descriptor
-                    for descriptor in ntf.descriptors
-                }
-                ntdval = await client.read_gatt_descriptor(
-                    dscd[PC80B_NTD].handle
-                )
+                # dscd = {
+                #     descriptor.uuid: descriptor
+                #     for descriptor in ntf.descriptors
+                # }
+                # ntdval = await client.read_gatt_descriptor(
+                #     dscd[PC80B_NTD].handle
+                # )
                 # print("ntdval", ntdval.hex(), file=stderr)
                 signal.report_status(True, f"Connected {dev} {details}")
                 print(
@@ -197,10 +199,13 @@ async def scanner(signal: Signal) -> None:
 
 
 class TestEvent(Event):
+    # pylint: disable=too-many-instance-attributes,too-few-public-methods
+    """Mock event for testing"""
+
     ev = 0xFF
 
     def __init__(self, floats: List[float]) -> None:
-        self.data = b""
+        super().__init__(b"")
         self.fin = False
         self.seqNo = 0
         self.hr = 0
@@ -215,7 +220,7 @@ class TestEvent(Event):
 
 
 async def testsrc(signal: Signal) -> None:
-    global task
+    global task  # pylint: disable=global-statement
     task = asyncio.current_task()
     print("Launched test source")
     signal.report_status(True, "Sending test ladder signal")
@@ -233,6 +238,8 @@ async def testsrc(signal: Signal) -> None:
 
 
 class Scanner(Thread):
+    """BLE scanning thread"""
+
     def __init__(self, signal: Signal, test: bool) -> None:
         super().__init__()
         self.signal = signal
@@ -243,7 +250,7 @@ class Scanner(Thread):
         print("asyncio.run finished")
 
     def stop(self) -> None:
-        global task
+        global task  # pylint: disable=global-statement
         print("scanner stop called")
         disconnect.set()
         if task is not None:
@@ -256,9 +263,11 @@ if __name__ == "__main__":
     opts = dict(topts)
     verbose = "-v" in opts
 
-    class PseudoSignal(Signal):
+    class PseudoSignal(Signal):  # pylint: disable=used-before-assignment
+        """Mock receiver for testing"""
+
         def report_ble(self, connected: bool, sts: Tuple[int, str]) -> None:
-            print("report_ble", sts)
+            print("report_ble", sts, "connected:", connected)
 
         def report_ecg(self, ev: Event) -> None:
             print("report_ecg", ev)

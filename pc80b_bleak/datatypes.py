@@ -1,9 +1,13 @@
+"""Data classes"""
+
 from enum import Enum
 from inspect import isclass
 from sys import stderr
 from struct import error, unpack
 from datetime import datetime
-from typing import ClassVar, Dict, List, NamedTuple, Type
+from typing import ClassVar, Dict, List, Type
+
+# pylint: disable=missing-class-docstring,too-few-public-methods,too-many-instance-attributes
 
 
 class Channel(Enum):
@@ -35,10 +39,13 @@ class Event:
         self.data = data
 
     def __repr__(self) -> str:
-        return f"""{self.__class__.__name__}(0x{self.ev:02x}:{self.data.hex()[:16]} {', '.join(
+        return (
+            f"""{self.__class__.__name__}(0x{self.ev:02x}:"""
+            f"""{self.data.hex()[:16]} {', '.join(
                 f'{k}={len(v) if isinstance(v,list) else v}'
                 for k, v in self.__dict__.items()
                 if not (k == 'data' or k.startswith('__')))})"""
+        )
 
 
 class EventPc80bDeviceInfo(Event):
@@ -171,6 +178,7 @@ CLASSES: Dict[int, Type[Event]] = {
 
 
 def mkEv(ev: int, data: bytes) -> Event:
+    """Try to parse binary string as one of Event subclasses"""
     if ev in CLASSES:
         return CLASSES[ev](data)
     raise RuntimeError(f"EventPc80b???(0x{ev:02x}:{data.hex()} )")
@@ -178,4 +186,5 @@ def mkEv(ev: int, data: bytes) -> Event:
 
 class TestData(Event):
     def __init__(self, ecgFloats: List[float]) -> None:
+        super().__init__(b"")
         self.ecgFloats = ecgFloats

@@ -3,13 +3,18 @@
 from collections import deque
 from datetime import datetime
 from itertools import repeat
-from time import time_ns
-from typing import Optional, Tuple
-from cairo import (
+from typing import Optional
+from cairo import (  # pylint: disable=no-name-in-module
     Context,
     ImageSurface,
     FORMAT_ARGB32,
 )
+
+import gi  # type: ignore [import-untyped]
+
+gi.require_version("Gst", "1.0")
+# pylint: disable=wrong-import-position
+from gi.repository import Gst  # type: ignore [import-untyped]
 
 from .ble import Scanner, TestEvent
 from .datatypes import (
@@ -18,17 +23,11 @@ from .datatypes import (
     EventPc80bFastData,
     EventPc80bHeartbeat,
     EventPc80bTime,
-    Channel,
-    MMode,
-    MStage,
 )
 from .drw import Drw, FrameMeta
 from .gst import Pipe
 
-import gi  # type: ignore [import-untyped]
-
-gi.require_version("Gst", "1.0")
-from gi.repository import Gst  # type: ignore [import-untyped]
+# pylint: disable=missing-function-docstring
 
 FRAMES_PER_SEC = 30
 VALS_PER_SEC = 150
@@ -41,6 +40,10 @@ FRAMEDUR = 1_000_000_000 // FRAMES_PER_SEC
 
 
 class Signal:
+    """Signal convertor"""
+
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(self, crt_w: int, crt_h: int) -> None:
         self.crt_w = crt_w
         self.crt_h = crt_h
@@ -117,10 +120,11 @@ class Signal:
             print("unhandled", event)
 
     def register_pipe(self, pipe: Pipe) -> None:
+        # pylint: disable=attribute-defined-outside-init
         self.pipe = pipe
         self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN)
 
-    def on_need_data(self, source: Gst.Element, amount: int) -> None:
+    def on_need_data(self, _source: Gst.Element, _amount: int) -> None:
         # print(
         #     "Need data, time",
         #     time_ns(),
@@ -148,5 +152,5 @@ class Signal:
                     del image
                 setts(FRAMEDUR, 0)
 
-    def on_enough_data(self, source: Gst.Element) -> None:
+    def on_enough_data(self, _source: Gst.Element) -> None:
         print("Uh-oh, got 'enough-data'")

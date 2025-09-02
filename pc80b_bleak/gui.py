@@ -1,10 +1,14 @@
+"""GTK GUI"""
+
 from __future__ import annotations
-import gi  # type: ignore [import-untyped]
-from cairo import Context, Surface
 from typing import Any, Dict, List, Literal
+import gi  # type: ignore [import-untyped]
+from cairo import Context, Surface  # pylint: disable=no-name-in-module
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+# pylint: disable=wrong-import-position
+
 from gi.repository import (  # type: ignore [import-untyped]
     Adw,
     Gdk,
@@ -14,6 +18,9 @@ from gi.repository import (  # type: ignore [import-untyped]
 
 from .sgn import Signal
 from .gst import Pipe
+
+# pylint: disable=missing-function-docstring
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 
 CRT_W = 720
 CRT_H = 480
@@ -42,6 +49,10 @@ def spacepad(what: Gtk.Widget) -> None:
 
 
 class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
+    """GTK top window"""
+
+    # pylint: disable=too-many-instance-attributes
+    # pylint: disable=too-many-locals,too-many-statements
     def __init__(
         self, app: Adw.Application, *args: Any, **kwargs: Any
     ) -> None:
@@ -196,11 +207,11 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
 
     def draw_mon(
         self,
-        monda: Gtk.DrawingArea,
+        _monda: Gtk.DrawingArea,
         c: Context[Surface],
         w: int,
         h: int,
-        udata: Literal[None],
+        _udata: Literal[None],
     ) -> None:
         maxh = h - 20
         c.set_source_rgb(0, 0, 0)
@@ -210,26 +221,24 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
             lvl = round(
                 (self.level_data.get("rms", [0.0, 0.0])[lr] + 35) * maxh / 35.0
             )
-            if lvl < 0:
-                lvl = 0
-            if lvl > maxh:
-                lvl = maxh
+            lvl = max(lvl, 0)
+            lvl = min(lvl, maxh)
             c.set_source_rgb(0, 1, 0)
             c.rectangle(10 + lr * 14, 10 + maxh - lvl, 10, lvl)
             c.fill()
 
-    def on_testswitch(self, switch: Gtk.Widget, state: bool) -> None:
+    def on_testswitch(self, _switch: Gtk.Widget, state: bool) -> None:
         self.signal.start(state)
 
     def on_adelay(self, sbtn: Gtk.Widget) -> None:
         # print("delay spinbutton", sbtn.get_value_as_int())
         self.pipe.set_adelay(sbtn.get_value_as_int())
 
-    def on_textentry_activate(self, entry: Gtk.Widget) -> None:
+    def on_textentry_activate(self, _entry: Gtk.Widget) -> None:
         if not self.bcast.get_active():
             self.bcast.set_active(True)
 
-    def on_bcast(self, entry: Gtk.Widget, state: bool) -> None:
+    def on_bcast(self, _entry: Gtk.Widget, state: bool) -> None:
         # print("bcast switch", state, "url", self.streamurl.get_text())
         if state:
             self.pipe.start_broadcast(
@@ -243,11 +252,11 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
 
     def on_keypress(
         self,
-        event: Gtk.Event,
+        _event: Gtk.Event,
         keyval: int,
-        keycode: int,
+        _keycode: int,
         state: Gdk.ModifierType,
-        udata: Literal[None],
+        _udata: Literal[None],
     ) -> None:
         if keyval == Gdk.KEY_q and state & Gdk.ModifierType.CONTROL_MASK:
             self.close()
@@ -272,6 +281,8 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
 
 
 class App(Adw.Application):  # type: ignore [misc] # no stubs
+    """Top GTK app"""
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.args = args
         self.kwargs = kwargs
@@ -289,6 +300,7 @@ class App(Adw.Application):  # type: ignore [misc] # no stubs
 
     def on_activate(self, app: Adw.Application) -> None:
         assert app is self
+        # pylint: disable=attribute-defined-outside-init
         self.win = AppWindow(self, *self.args, **self.kwargs)
         self.win.present()
 

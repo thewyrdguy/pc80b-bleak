@@ -1,30 +1,25 @@
 """Draw display picture"""
 
+# pylint: disable=missing-function-docstring,no-name-in-module
+
 from __future__ import annotations
+from datetime import datetime, timezone
+from typing import Iterable, NamedTuple
 from cairo import (
     Context,
     ImageSurface,
-    FORMAT_ARGB32,
+    # FORMAT_ARGB32,
     FONT_SLANT_NORMAL,
     FONT_WEIGHT_BOLD,
     FONT_WEIGHT_NORMAL,
-)
-from datetime import datetime, timezone
-from enum import Enum
-from time import time_ns
-from typing import (
-    Callable,
-    ContextManager,
-    Iterable,
-    NamedTuple,
-    Tuple,
-    TYPE_CHECKING,
 )
 
 from .datatypes import Channel, MMode, MStage
 
 
 class FrameMeta(NamedTuple):
+    """Aggregate data for drawing a frame"""
+
     dtime: datetime = datetime.now()
     battery: int = 0
     hr: int = 0
@@ -48,6 +43,8 @@ def drawtext(
 
 
 class Drw:
+    """Drawer class with geometry of the display and drawing methods"""
+
     def __init__(
         self,
         crt_w: int,
@@ -64,7 +61,7 @@ class Drw:
         c.fill()
         c.select_font_face("sans-serif", FONT_SLANT_NORMAL, FONT_WEIGHT_BOLD)
         c.set_font_size(36)
-        (x, y, w, h, dx, dy) = c.text_extents(text)
+        (_x, _y, w, h, _dx, _dy) = c.text_extents(text)
         c.move_to((self.crt_w - w) / 2.0, (self.crt_h - h) / 2.0)
         c.set_source_rgb(1.0, 1.0, 1.0)
         c.show_text(text)

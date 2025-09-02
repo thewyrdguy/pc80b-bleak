@@ -1,11 +1,11 @@
+"""Gstreamer pipelint"""
+
 # https://github.com/matthew1000/gstreamer-cheat-sheet/blob/master/rtmp.md
 # Server: ffplay -listen 1 rtmp://0.0.0.0:9999/stream
 # https://stackoverflow.com/questions/67512264/how-to-use-gstreamer-to-mux-live-audio-and-video-to-mpegts
 # https://stackoverflow.com/questions/27905606/gstreamer-how-recover-from-rtmpsink-error
 
 from __future__ import annotations
-import gi  # type: ignore [import-untyped]
-import cairo
 from contextlib import ExitStack
 from time import time_ns
 from typing import (
@@ -18,11 +18,16 @@ from typing import (
     TYPE_CHECKING,
 )
 
+import gi  # type: ignore [import-untyped]
+
 gi.require_version("Gst", "1.0")
+# pylint: disable=wrong-import-position
 from gi.repository import Gst  # type: ignore [import-untyped]
 
 if TYPE_CHECKING:
     from .sgn import Signal
+
+# pylint: disable=missing-function-docstring
 
 POOLSIZE = 128
 
@@ -51,20 +56,22 @@ class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
         self.sclk = sclk
 
     def __enter__(self) -> Tuple[memoryview, Callable[[int, int], None]]:
+        # pylint: disable=attribute-defined-outside-init
         res, self.buffer = self.pool.acquire_buffer()
         if res != Gst.FlowReturn.OK:
             raise RuntimeError(f"buffer acquisition {res}")
         minf = self.buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE)
         if hasattr(minf, "__enter__"):  # in newer python3-gst it is a CM
-            mm = minf.__enter__()
+            _mm = minf.__enter__()
             self.mmstack = minf
         else:  # provide our own stack
             with ExitStack() as mmctx:
-                mm = mmctx.enter_context(minf)
+                _mm = mmctx.enter_context(minf)
                 self.mmstack = mmctx.pop_all()
         return minf.data, self.setstamp
 
     def setstamp(self, dur: int, ts: int) -> None:
+        # pylint: disable=attribute-defined-outside-init
         self.dur = dur
         self.ts = ts
 
@@ -82,6 +89,8 @@ class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
 
 
 class BufList(ContextManager[Callable[[], PoolBuf]]):
+    """Context manager for a list of GST buffers"""
+
     def __init__(
         self,
         pool: Gst.BufferPool,
@@ -92,6 +101,7 @@ class BufList(ContextManager[Callable[[], PoolBuf]]):
         self.sclk = src.get_current_clock_time()
 
     def __enter__(self) -> Callable[[], PoolBuf]:
+        # pylint: disable=attribute-defined-outside-init
         self.lst = Gst.BufferList()
         return self.bufmaker
 
@@ -105,6 +115,11 @@ class BufList(ContextManager[Callable[[], PoolBuf]]):
 
 
 class Pipe:
+    """GST pipeline object"""
+
+    # pylint: disable=too-many-statements,too-many-locals
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(
         self,
         crt_w: int,
@@ -223,9 +238,9 @@ class Pipe:
 
     def pad_probe(
         self,
-        probe: Gst.PadProbeType,
+        _probe: Gst.PadProbeType,
         info: Gst.PadProbeInfo,
-        udata: Literal[None],
+        _udata: Literal[None],
     ) -> Gst.PadProbeReturn:
         buffer = info.get_buffer()
         # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
@@ -263,11 +278,11 @@ class Pipe:
         print("set_adelay", delay_ms, "ms")
         self.adelay = delay_ms * 1_000_000
 
-    def on_eos(self, bus: Gst.Bus, msg: Gst.Message) -> None:
+    def on_eos(self, _bus: Gst.Bus, _msg: Gst.Message) -> None:
         print("End of stream")
         self.stop_broadcast(forced=True)
 
-    def on_error(self, bus: Gst.Bus, msg: Gst.Message) -> None:
+    def on_error(self, _bus: Gst.Bus, msg: Gst.Message) -> None:
         error, debug = msg.parse_error()
         if msg.src is self.rtmp:
             print("RTMP ERROR", error, "DEBUG", debug)
@@ -276,7 +291,7 @@ class Pipe:
             print("Non RTMP ERROR", error, "DEBUG", debug)
         self.on_error_gui(error.message)
 
-    def on_level(self, bus: Gst.Bus, msg: Gst.Message) -> None:
+    def on_level(self, _bus: Gst.Bus, msg: Gst.Message) -> None:
         s = msg.get_structure()
         kwargs = {k: s.get_value(k) for k in ("rms", "peak", "decay")}
         self.on_level_gui(**kwargs)
