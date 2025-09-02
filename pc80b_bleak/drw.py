@@ -103,7 +103,7 @@ class Drw:
         drawtext(
             c,
             20,
-            20,
+            self.crt_h - 20,
             fmeta.dtime.astimezone(timezone.utc).strftime(
                 "%Y-%m-%d %H:%M:%S UTC"
             ),
