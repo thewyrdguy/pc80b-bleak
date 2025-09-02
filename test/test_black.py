@@ -1,3 +1,5 @@
+"""Test formatting"""
+
 from glob import glob
 from subprocess import call
 from shutil import which
@@ -5,9 +7,12 @@ from unittest import main, TestCase
 
 
 class BlackCheck(TestCase):
+    """Test formatting"""
+
     def test_black(self) -> None:
+        """Test formatting"""
         if not which("black"):
-            self.fail(f"black not installed.")
+            self.fail("black not installed.")
         cmd = [
             "black",
             "--check",

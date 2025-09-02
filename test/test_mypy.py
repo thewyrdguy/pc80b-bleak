@@ -1,10 +1,15 @@
+"""Type check"""
+
 from subprocess import call
 from shutil import which
 from unittest import main, TestCase
 
 
 class TypeCheck(TestCase):
+    """Type check"""
+
     def test_mypy(self) -> None:
+        """Type check"""
         if not which("mypy"):
             self.fail("mypy not installed.")
         cmd = [

@@ -1,14 +1,18 @@
+"""Linter check"""
+
 from os import path
 from subprocess import call
 from shutil import which
-from unittest import main, expectedFailure, TestCase
+from unittest import main, TestCase
 
 CONF = path.join(path.dirname(__file__), "pylint.conf")
 
 
 class LintCheck(TestCase):
-    @expectedFailure  # TODO enable later
+    """Linter check"""
+
     def test_pylint(self) -> None:
+        """Linter check"""
         if not which("pylint"):
             self.fail("pylint not installed.")
         cmd = [
