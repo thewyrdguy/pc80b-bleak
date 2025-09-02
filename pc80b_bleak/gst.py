@@ -56,6 +56,7 @@ class PoolBuf(ContextManager[Tuple[memoryview, Callable[[int, int], None]]]):
             raise RuntimeError(f"buffer acquisition {res}")
         minf = self.buffer.map(Gst.MapFlags.READ | Gst.MapFlags.WRITE)
         if hasattr(minf, "__enter__"):  # in newer python3-gst it is a CM
+            mm = minf.__enter__()
             self.mmstack = minf
         else:  # provide our own stack
             with ExitStack() as mmctx:
