@@ -117,6 +117,7 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         c.line_to(xpos, self.crt_h)
         c.stroke()
 
+        # Datetime
         drawtext(
             c,
             20,
@@ -124,11 +125,20 @@ class Drw:  # pylint: disable=too-many-instance-attributes
             fmeta.dtime.astimezone(timezone.utc).strftime(
                 "%Y-%m-%d %H:%M:%S UTC"
             ),
+            fsize=24,
         )
+        # Heart rate
         drawtext(
             c,
-            self.crt_w - 70,
-            40,
+            self.crt_w - 100,
+            60,
             str(fmeta.hr) if fmeta.hr else "---",
-            fsize=32,
+            fsize=48,
         )
+        # Battery level
+        c.set_source_rgb(0.0, 1.0, 0.0)
+        c.set_line_width(2)
+        c.rectangle(self.crt_w - 80, self.crt_h - 40, 60, 20)
+        c.stroke()
+        c.rectangle(self.crt_w - 80, self.crt_h - 40, fmeta.battery * 20, 20)
+        c.fill()
