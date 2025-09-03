@@ -122,7 +122,7 @@ class Signal:
     def register_pipe(self, pipe: Pipe) -> None:
         # pylint: disable=attribute-defined-outside-init
         self.pipe = pipe
-        self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN)
+        self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN, VALS_PER_SEC)
 
     def on_need_data(self, _source: Gst.Element, _amount: int) -> None:
         # print(
