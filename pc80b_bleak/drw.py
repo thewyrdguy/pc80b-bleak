@@ -79,9 +79,11 @@ class Drw:
         xscale = self.crt_w / self.vals_on_screen
         ymid = self.crt_h / 2
         yscale = ymid / 4.0  # div by max y value - +/- 4 mV
+        # Black background
         c.set_source_rgb(0.0, 0.0, 0.0)
         c.rectangle(0, 0, self.crt_w, self.crt_h)
         c.fill()
+        # Green signal trace
         c.set_source_rgb(0.0, 1.0, 0.0)
         c.set_line_width(4)
         for x, val in enumerate(data):
@@ -91,6 +93,7 @@ class Drw:
             else:  # Point zero - move to the left edge
                 c.move_to(xpos, ymid - val * yscale)
         c.stroke()
+        # Running edge
         c.set_source_rgb(0.2, 0.2, 0.2)
         xpos = samppos * xscale
         c.move_to(xpos, 0)
