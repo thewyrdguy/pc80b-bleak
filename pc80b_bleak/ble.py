@@ -188,7 +188,10 @@ async def scanner(signal: Signal) -> None:
                 # crc = pack("B", crc8(devinfo))
                 # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
                 # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
-                await disconnect.wait()
+                try:
+                    await disconnect.wait()
+                except asyncio.exceptions.CancelledError:
+                    print("Cancelled")
                 signal.report_status(False, "Disconnected")
                 print("Disconnecting", file=stderr)
         except TimeoutError:
