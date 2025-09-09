@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=pc80b-bleak
+Exec=python3 -m pc80b_bleak %F
+Comment=ECG receiver for Viatop PC80B Bluetooth ECG recorders
+Keywords=ecg,ekg,electrocardiogram
+Terminal=false
+Type=Application
+Categories=Graphics;Science;DataVisualization;MedicalSoftware;GTK;Viewer;
+Icon=electrocardiograph
