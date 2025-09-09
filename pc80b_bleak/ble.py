@@ -230,9 +230,9 @@ async def testsrc(signal: Signal) -> None:
     step = 0
     try:
         while True:
-            if step > 6:
+            if step > 4:
                 step = 0
-            values = [step - 3.0 for i in range(25)]
+            values = [step - 2.0 for i in range(25)]
             signal.report_data(TestEvent(values))
             step += 1
             await asyncio.sleep(0.166666666)

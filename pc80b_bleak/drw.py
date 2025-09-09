@@ -57,12 +57,14 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         self.vals_on_screen = vals_on_screen
         self.xscale = self.crt_w / self.vals_on_screen
         self.ymid = self.crt_h // 2
-        self.yscale = self.ymid / 4.0  # div by max y value - +/- 4 mV
+        self.yscale = self.ymid / 2.5  # div by max y value - +/- 2.5 mV
         # Big square width .2 sec, small square .04 sec
         # Big square hight .5 mV, small square .1 mV
-        self.xtick_step = vals_per_sec // 5  # big square - 200 msec
+        self.xtick_step = (  # big square - 200 msec
+            self.crt_w // (vals_on_screen // vals_per_sec) // 5
+        )
         self.xtick_max = self.crt_w // self.xtick_step
-        self.ytick_step = self.ymid // 8  # big squate - .5 mV
+        self.ytick_step = self.ymid // 5  # big squate - .5 mV
         self.ytick_max = self.crt_h // self.ytick_step
 
     def clearscreen(self, c: Context[ImageSurface], text: str) -> None:
