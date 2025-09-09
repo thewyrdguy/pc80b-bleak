@@ -92,6 +92,12 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         c.set_source_rgb(0.0, 0.0, 0.0)
         c.rectangle(0, 0, self.crt_w, self.crt_h)
         c.fill()
+        # Grid labels
+        for y, l in zip(
+            range(self.ytick_max // 2), ("+2", "+1", "+0", "-1", "-2")
+        ):
+            drawtext(c, 5, (2 * y + 1) * self.ytick_step + 6, l)
+        drawtext(c, 5, 20, "mV")
         # Grid
         c.set_source_rgb(0.4, 0.4, 0.4)
         c.set_line_width(2)
@@ -99,7 +105,7 @@ class Drw:  # pylint: disable=too-many-instance-attributes
             c.move_to(x * self.xtick_step, 0)
             c.line_to(x * self.xtick_step, self.crt_h)
         for y in range(self.ytick_max):
-            c.move_to(0, y * self.ytick_step)
+            c.move_to(25 if y % 2 else 0, y * self.ytick_step)
             c.line_to(self.crt_w, y * self.ytick_step)
         c.stroke()
         # Green signal trace
