@@ -129,7 +129,7 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         drawtext(
             c,
             20,
-            self.crt_h - 20,
+            self.crt_h - 15,
             fmeta.dtime.astimezone(timezone.utc).strftime(
                 "%Y-%m-%d %H:%M:%S UTC"
             ),
@@ -146,7 +146,7 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         # Battery level
         c.set_source_rgb(0.0, 1.0, 0.0)
         c.set_line_width(2)
-        c.rectangle(self.crt_w - 80, self.crt_h - 40, 60, 20)
+        c.rectangle(self.crt_w - 80, self.crt_h - 35, 60, 20)
         c.stroke()
-        c.rectangle(self.crt_w - 80, self.crt_h - 40, fmeta.battery * 20, 20)
+        c.rectangle(self.crt_w - 80, self.crt_h - 35, fmeta.battery * 20, 20)
         c.fill()
