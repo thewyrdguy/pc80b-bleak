@@ -4,8 +4,10 @@
 
 from __future__ import annotations
 from datetime import datetime, timezone
+from collections import deque
 from typing import Iterable, NamedTuple
 from cairo import (
+    # ColorMode,
     Context,
     ImageSurface,
     # FORMAT_ARGB32,
@@ -111,7 +113,9 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         # Green signal trace
         c.set_source_rgb(0.0, 1.0, 0.0)
         c.set_line_width(4)
+        last5: deque[float] = deque(maxlen=5)
         for x, val in enumerate(data):
+            last5.append(val)
             xpos = (samppos + x) % self.vals_on_screen * self.xscale
             if xpos:
                 c.line_to(xpos, self.ymid - val * self.yscale)
@@ -125,6 +129,23 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         c.line_to(xpos, self.crt_h)
         c.stroke()
 
+        # Blinking icon
+        prev = 0.0
+        act = 0.0
+        for val in last5:
+            act += abs(val - prev)
+            prev = val
+        if act > 0.5:
+            c.select_font_face(
+                "Noto Color Emoji", FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL
+            )
+            c.set_font_size(36)
+            c.move_to(50, 35)
+            c.set_source_rgb(1.0, 0.0, 0.0)
+            # fo = c.get_font_options()
+            # fo.set_color_mode(ColorMode.COLOR)
+            # c.set_font_options(fo)
+            c.show_text("\u2665")  # WHY on earch is it BLUE?!
         # Datetime
         drawtext(
             c,
