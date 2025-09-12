@@ -26,7 +26,7 @@ Depends: python3-gi,
          gstreamer1.0-gtk4,
          gstreamer1.0-plugins-bad,
          python3-crcmod,
-         fonts-noto-color-emoji,
+         fonts-symbola,
          ${misc:Depends},
          ${python3:Depends},
 Description: Application to read and render realtime ECG

@@ -18,6 +18,9 @@ from .datatypes import (
     Event,
     EventPc80bContData,
     EventPc80bTransmode,
+    Channel,
+    MMode,
+    MStage,
 )
 
 if TYPE_CHECKING:
@@ -213,12 +216,11 @@ class TestEvent(Event):
         self.seqNo = 0
         self.hr = 0
         self.gain = 0
-        self.channel = 0
-        self.mmode = 0
-        self.mstage = 0
+        self.channel = Channel.detecting
+        self.mmode = MMode.detecting
+        self.mstage = MStage.detecting
         self.leadoff = True
         self.datatype = 0
-        self.mstage = 0
         self.ecgFloats = floats
 
 

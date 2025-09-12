@@ -80,7 +80,7 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         c.set_source_rgb(1.0, 1.0, 1.0)
         c.show_text(text)
 
-    def drawcurve(
+    def drawcurve(  # pylint: disable=too-many-branches,too-many-statements
         self,
         c: Context[ImageSurface],
         fmeta: FrameMeta,
@@ -135,17 +135,56 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         for val in last5:
             act += abs(val - prev)
             prev = val
+        c.select_font_face(
+            # "Noto Color Emoji", FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL
+            "Symbola",
+            FONT_SLANT_NORMAL,
+            FONT_WEIGHT_NORMAL,
+        )
+        c.set_source_rgb(0.0, 0.0, 1.0)
         if act > 0.5:
-            c.select_font_face(
-                "Noto Color Emoji", FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL
-            )
             c.set_font_size(36)
-            c.move_to(50, 35)
-            c.set_source_rgb(1.0, 0.0, 0.0)
+            c.move_to(55, 35)
             # fo = c.get_font_options()
             # fo.set_color_mode(ColorMode.COLOR)
             # c.set_font_options(fo)
             c.show_text("\u2665")  # WHY on earch is it BLUE?!
+            # ("\U0001f498\U0001f499\U0001f49a\U0001f49b\U0001f49c")
+        # Lead off
+        c.set_font_size(28)
+        c.move_to(105, 35)
+        if fmeta.leadoff:
+            c.set_source_rgb(0.0, 0.0, 1.0)
+            c.show_text("\u268b")
+        else:
+            c.set_source_rgb(0.0, 1.0, 0.0)
+            c.show_text("\u268a")
+        # contin/interval
+        c.move_to(155, 35)
+        c.set_source_rgb(0.0, 1.0, 0.0)
+        if fmeta.mmode is MMode.continuous:
+            c.show_text("\u2b62")
+        elif fmeta.mmode is MMode.fast:
+            c.show_text("\u2b72")
+        else:  # fmeta.mmode is MMode.detecting:
+            c.set_source_rgb(0.4, 0.4, 0.4)
+            c.show_text("\u2b62")
+        # Stage
+        c.move_to(202, 35)
+        clr, sym = {
+            MStage.detecting: ((0.5, 0.5, 0.5), "\u24ff"),
+            MStage.preparing: ((0.0, 1.0, 0.0), "\u278a"),
+            MStage.measuring: ((0.0, 1.0, 0.0), "\u278b"),
+            MStage.analyzing: ((0.0, 1.0, 0.0), "\u278c"),
+            MStage.result: ((0.0, 1.0, 0.0), "\u278d"),
+            MStage.stop: ((0.0, 0.0, 1.0), "\u278e"),
+        }.get(fmeta.mstage, ((0.5, 0.5, 0.5), "\u2753"))
+        c.set_source_rgb(*clr)
+        c.show_text(sym)
+        # Gain
+        drawtext(c, 405, 25, "Gain " + str(fmeta.gain))
+        # Vol
+        drawtext(c, 510, 25, "Vol " + str(fmeta.gain))
         # Datetime
         drawtext(
             c,
