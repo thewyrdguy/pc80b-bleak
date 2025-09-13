@@ -169,8 +169,17 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         else:  # fmeta.mmode is MMode.detecting:
             c.set_source_rgb(0.4, 0.4, 0.4)
             c.show_text("\u2b62")
+        # Channel
+        c.move_to(202, 33)
+        clr, sym = {
+            Channel.detecting: ((0.5, 0.5, 0.5), "\U0001f173"),
+            Channel.internal: ((0.0, 1.0, 0.0), "\U0001f178"),
+            Channel.external: ((0.0, 1.0, 0.0), "\U0001f174"),
+        }.get(fmeta.channel, ((0.5, 0.5, 0.5), "\u2753"))
+        c.set_source_rgb(*clr)
+        c.show_text(sym)
         # Stage
-        c.move_to(202, 35)
+        c.move_to(250, 33)
         clr, sym = {
             MStage.detecting: ((0.5, 0.5, 0.5), "\u24ff"),
             MStage.preparing: ((0.0, 1.0, 0.0), "\u278a"),
