@@ -184,10 +184,9 @@ class Pipe:
             Gst.PadProbeType.BUFFER, self.pad_probe, None
         )
         voaacenc.link(flvm)
-        self.laque = Gst.ElementFactory.make("queue", None)
-        self.pl.add(self.laque)
-        # self.laque.set_property("min-threshold-time", ADELAY)
-        self.laque.link(voaacenc)
+        self.pl.add(raque := Gst.ElementFactory.make("queue", None))
+        # raque.set_property("min-threshold-time", ADELAY)
+        raque.link(voaacenc)
 
         # Local video sink
         gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
@@ -204,9 +203,9 @@ class Pipe:
         lvque.link(lvsnk)
 
         # Video application source
-        self.pl.add(tee := Gst.ElementFactory.make("tee", None))
-        tee.link(lvque)
-        tee.link(rvque)
+        self.pl.add(lvtee := Gst.ElementFactory.make("tee", None))
+        lvtee.link(lvque)
+        lvtee.link(rvque)
         self.pl.add(appsrc := Gst.ElementFactory.make("appsrc", None))
         self.src = appsrc
         appsrc.set_property("format", Gst.Format.TIME)
@@ -220,13 +219,29 @@ class Pipe:
         appsrc.connect("need-data", self.on_need_data)
         appsrc.connect("enough-data", self.on_enough_data)
         appsrc.link_filtered(
-            tee,
+            lvtee,
             Gst.Caps.from_string(CAPS.format(crt_w=crt_w, crt_h=crt_h)),
         )
 
+        # Local audio sink
+        self.labin = Gst.Bin.new("audiomonitor")
+        self.labin.add(lasnk := Gst.ElementFactory.make("autoaudiosink", None))
+        lasnk.set_property("sync", True)
+        # terminal element
+        self.labin.add(laque := Gst.ElementFactory.make("queue", None))
+        laque.link(lasnk)
+        self.labin.add_pad(
+            Gst.GhostPad.new("sink", laque.get_static_pad("sink"))
+        )
+
+        self.latee = Gst.ElementFactory.make("tee", None)
+        self.pl.add(self.latee)
+        self.latee.link(raque)
+        # self.latee.link(self.labin)
+
+        # Audio source
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
-        # alvl.link(fakesnk)
-        alvl.link(self.laque)
+        alvl.link(self.latee)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
             alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
@@ -270,6 +285,19 @@ class Pipe:
             self.pl.remove(self.rtmp)
             self.rtmp.set_state(Gst.State.NULL)
             self.set_state(True)
+
+    def set_monitor(self, on: bool) -> None:
+        print("Set monitor state to", on)
+        self.set_state(False)
+        if on:
+            self.pl.add(self.labin)
+            self.latee.link(self.labin)
+            self.labin.set_state(Gst.State.PLAYING)
+        else:
+            self.latee.unlink(self.labin)
+            self.pl.remove(self.labin)
+            self.labin.set_state(Gst.State.NULL)
+        self.set_state(True)
 
     def get_adelay(self) -> int:
         return self.adelay // 1_000_000

@@ -137,7 +137,8 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         self.streamurl.set_completion(completion)
         self.streamurl.set_hexpand(True)
         self.streamurl.set_placeholder_text("Enter RTMP URL")
-        self.streamurl.set_text("rtmp://abuser.cardiobasel.ch/stream/live")
+        # use ffplay -listen 1 rtmp://0.0.0.0:9999/stream
+        self.streamurl.set_text("rtmp://localhost:9999/stream")
         self.streamurl.set_alignment(0)
         self.streamurl.set_icon_from_icon_name(
             Gtk.EntryIconPosition.SECONDARY, "edit-clear"
@@ -188,6 +189,13 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         self.onairframe = Gtk.Frame()
         self.onairframe.set_child(self.offairlbl)
         rbox.append(self.onairframe)
+        monswitch = Gtk.Switch()
+        monswitch.set_halign(Gtk.Align.CENTER)
+        monswitch.set_valign(Gtk.Align.CENTER)
+        monswitch.set_active(False)
+        monswitch.connect("state-set", self.on_monswitch)
+        rbox.append(Gtk.Label(label="Mon"))
+        rbox.append(monswitch)
         hbox.append(rbox)
 
         vbox.append(hbox)
@@ -229,6 +237,9 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
 
     def on_testswitch(self, _switch: Gtk.Widget, state: bool) -> None:
         self.signal.start(state)
+
+    def on_monswitch(self, _switch: Gtk.Widget, state: bool) -> None:
+        self.pipe.set_monitor(state)
 
     def on_adelay(self, sbtn: Gtk.Widget) -> None:
         # print("delay spinbutton", sbtn.get_value_as_int())
