@@ -180,9 +180,6 @@ class Pipe:
 
         self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
         voaacenc.set_property("bitrate", 128000)
-        voaacenc.get_static_pad("sink").add_probe(
-            Gst.PadProbeType.BUFFER, self.pad_probe, None
-        )
         voaacenc.link(flvm)
         self.pl.add(raque := Gst.ElementFactory.make("queue", None))
         # raque.set_property("min-threshold-time", ADELAY)
@@ -235,13 +232,18 @@ class Pipe:
         )
 
         self.latee = Gst.ElementFactory.make("tee", None)
+        self.latee.get_static_pad("sink").add_probe(
+            Gst.PadProbeType.BUFFER, self.pad_probe, None
+        )
         self.pl.add(self.latee)
         self.latee.link(raque)
         # self.latee.link(self.labin)
+        self.pl.add(delayq := Gst.ElementFactory.make("queue", None))
+        delayq.link(self.latee)
 
         # Audio source
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
-        alvl.link(self.latee)
+        alvl.link(delayq)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
             alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
