@@ -3,6 +3,7 @@
 from collections import deque
 from datetime import datetime
 from itertools import repeat
+from time import time_ns
 from typing import Optional
 from cairo import (  # pylint: disable=no-name-in-module
     Context,
@@ -53,6 +54,7 @@ class Signal:
         self.samppos = 0
         self.battery = 0
         self.dtime = datetime.now()
+        self.last_data = 0
 
     def cleardata(self) -> None:
         self.samppos = 0
@@ -77,6 +79,7 @@ class Signal:
         if isinstance(
             event, (EventPc80bContData, EventPc80bFastData, TestEvent)
         ):
+            self.last_data = time_ns()
             if event.fin:
                 # clean up something? Change status?
                 return
@@ -108,7 +111,7 @@ class Signal:
                         finally:
                             del c
                             del image
-                        setts(FRAMEDUR, (i + 15) * FRAMEDUR)
+                        setts(FRAMEDUR, i * FRAMEDUR)
                         # print("buf", i, "with ts", i * FRAMEDUR)
             # print("buflist sent")
         elif isinstance(event, EventPc80bHeartbeat):
@@ -133,6 +136,9 @@ class Signal:
         #     "amount",
         #     amount,
         # )
+        if time_ns() - self.last_data < 1_000_000_000:
+            print("ignore need_data")
+            return
 
         with self.pipe.listmaker() as dispense:
             with dispense() as (mem, setts):

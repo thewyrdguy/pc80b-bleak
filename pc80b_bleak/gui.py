@@ -194,7 +194,7 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         monswitch.set_valign(Gtk.Align.CENTER)
         monswitch.set_active(False)
         monswitch.connect("state-set", self.on_monswitch)
-        rbox.append(Gtk.Label(label="Mon"))
+        rbox.append(Gtk.Label(label="\U0001f3a7"))
         rbox.append(monswitch)
         hbox.append(rbox)
 
