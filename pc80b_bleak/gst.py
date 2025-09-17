@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 POOLSIZE = 128
 
-ADELAY = 0  # 1_200_000_000
+ADELAY = 1_000_000_000
 
 CAPS = (
     "video/x-raw,format=RGBA,bpp=32,depth=32,width={crt_w},height={crt_h}"
@@ -232,21 +232,21 @@ class Pipe:
         )
 
         self.latee = Gst.ElementFactory.make("tee", None)
-        self.latee.get_static_pad("sink").add_probe(
-            Gst.PadProbeType.BUFFER, self.pad_probe, None
-        )
         self.pl.add(self.latee)
         self.latee.link(raque)
         # self.latee.link(self.labin)
-        self.pl.add(delayq := Gst.ElementFactory.make("queue", None))
-        delayq.link(self.latee)
 
         # Audio source
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
-        alvl.link(delayq)
+        alvl.link(self.latee)
+        alvl.get_static_pad("sink").add_probe(
+            Gst.PadProbeType.BUFFER, self.pad_probe, None
+        )
+        self.pl.add(delayq := Gst.ElementFactory.make("queue", None))
+        delayq.link(alvl)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
-            alvl, Gst.Caps.from_string("audio/x-raw,channels=2")
+            delayq, Gst.Caps.from_string("audio/x-raw,channels=2")
         )
         self.pl.add(asrc := Gst.ElementFactory.make("autoaudiosrc", None))
         asrc.link(acnv)
