@@ -178,12 +178,13 @@ class Pipe:
         rvque.set_property("max-size-buffers", 0)
         rvque.link(vconv)
 
-        self.pl.add(voaacenc := Gst.ElementFactory.make("voaacenc", None))
-        voaacenc.set_property("bitrate", 128000)
-        voaacenc.link(flvm)
+        # self.pl.add(aacenc := Gst.ElementFactory.make("voaacenc", None))
+        self.pl.add(aacenc := Gst.ElementFactory.make("avenc_aac", None))
+        # aacenc.set_property("bitrate", 128000)
+        aacenc.link(flvm)
         self.pl.add(raque := Gst.ElementFactory.make("queue", None))
         # raque.set_property("min-threshold-time", ADELAY)
-        raque.link(voaacenc)
+        raque.link(aacenc)
 
         # Local video sink
         gtksink = Gst.ElementFactory.make("gtk4paintablesink", None)
