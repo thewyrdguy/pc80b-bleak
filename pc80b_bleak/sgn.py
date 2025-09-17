@@ -19,11 +19,14 @@ from gi.repository import Gst  # type: ignore [import-untyped]
 
 from .ble import Scanner, TestEvent
 from .datatypes import (
+    Channel,
     Event,
     EventPc80bContData,
     EventPc80bFastData,
     EventPc80bHeartbeat,
     EventPc80bTime,
+    MMode,
+    MStage,
 )
 from .drw import Drw, FrameMeta
 from .gst import Pipe
@@ -83,13 +86,23 @@ class Signal:
             if event.fin:
                 # clean up something? Change status?
                 return
+
             fmeta = FrameMeta(
                 dtime=self.dtime,
                 battery=self.battery,
                 **{
-                    k: getattr(event, k)
-                    for k in FrameMeta._fields
-                    if hasattr(event, k)
+                    **(
+                        {
+                            "channel": Channel.external,
+                            "mmode": MMode.continuous,
+                            "mstage": MStage.measuring,
+                        }
+                    ),  # if isinstance(event, EventPc80bContData) else {}),
+                    **{
+                        k: getattr(event, k)
+                        for k in FrameMeta._fields
+                        if hasattr(event, k)
+                    },
                 },
             )
             with self.pipe.listmaker() as dispense:
@@ -137,7 +150,7 @@ class Signal:
         #     amount,
         # )
         if time_ns() - self.last_data < 1_000_000_000:
-            print("ignore need_data")
+            # print("ignore need_data")
             return
 
         with self.pipe.listmaker() as dispense:
