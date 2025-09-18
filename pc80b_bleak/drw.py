@@ -158,15 +158,17 @@ class Drw:  # pylint: disable=too-many-instance-attributes
             c.show_text("\u268b")
         else:
             c.set_source_rgb(0.0, 1.0, 0.0)
-            c.show_text("\u268a")
+            c.show_text("\u29df")
         # contin/interval
-        c.move_to(155, 35)
         c.set_source_rgb(0.0, 1.0, 0.0)
         if fmeta.mmode is MMode.continuous:
-            c.show_text("\u2b62")
+            c.move_to(155, 32)
+            c.show_text("\u221e")
         elif fmeta.mmode is MMode.fast:
+            c.move_to(155, 35)
             c.show_text("\u2b72")
         else:  # fmeta.mmode is MMode.detecting:
+            c.move_to(155, 35)
             c.set_source_rgb(0.4, 0.4, 0.4)
             c.show_text("\u2b62")
         # Channel
@@ -181,12 +183,12 @@ class Drw:  # pylint: disable=too-many-instance-attributes
         # Stage
         c.move_to(250, 33)
         clr, sym = {
-            MStage.detecting: ((0.5, 0.5, 0.5), "\u24ff"),
-            MStage.preparing: ((0.0, 1.0, 0.0), "\u278a"),
-            MStage.measuring: ((0.0, 1.0, 0.0), "\u278b"),
-            MStage.analyzing: ((0.0, 1.0, 0.0), "\u278c"),
-            MStage.result: ((0.0, 1.0, 0.0), "\u278d"),
-            MStage.stop: ((0.0, 0.0, 1.0), "\u278e"),
+            MStage.detecting: ((0.5, 0.5, 0.5), "\u24b9"),
+            MStage.preparing: ((0.0, 1.0, 0.0), "\u24c5"),
+            MStage.measuring: ((0.0, 1.0, 0.0), "\u24c2"),
+            MStage.analyzing: ((0.0, 1.0, 0.0), "\u24b6"),
+            MStage.result: ((0.0, 1.0, 0.0), "\u24c7"),
+            MStage.stop: ((0.0, 0.0, 1.0), "\u24c8"),
         }.get(fmeta.mstage, ((0.5, 0.5, 0.5), "\u2753"))
         c.set_source_rgb(*clr)
         c.show_text(sym)
