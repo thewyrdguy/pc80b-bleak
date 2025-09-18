@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 POOLSIZE = 128
 
-ADELAY = 1_000_000_000
+ADELAY = 800_000_000
 
 CAPS = (
     "video/x-raw,format=RGBA,bpp=32,depth=32,width={crt_w},height={crt_h}"
@@ -240,9 +240,8 @@ class Pipe:
         # Audio source
         self.pl.add(alvl := Gst.ElementFactory.make("level", None))
         alvl.link(self.latee)
-        alvl.get_static_pad("sink").add_probe(
-            Gst.PadProbeType.BUFFER, self.pad_probe, None
-        )
+        self.delay_pad = alvl.get_static_pad("sink")
+        self.delay_pad.set_offset(self.adelay)
         self.pl.add(delayq := Gst.ElementFactory.make("queue", None))
         delayq.link(alvl)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
@@ -253,19 +252,6 @@ class Pipe:
         asrc.link(acnv)
         bus.add_signal_watch()
         bus.connect("message::element", self.on_level)
-
-    def pad_probe(
-        self,
-        _probe: Gst.PadProbeType,
-        info: Gst.PadProbeInfo,
-        _udata: Literal[None],
-    ) -> Gst.PadProbeReturn:
-        buffer = info.get_buffer()
-        # print("buffer", buffer, buffer.pts, buffer.dts, buffer.duration)
-        if hasattr(buffer, "make_writable"):
-            buffer.make_writable()
-        buffer.pts += self.adelay
-        return Gst.PadProbeReturn.OK
 
     def start_broadcast(self, url: str, key: str) -> None:
         print("start broadcast", url, key)
@@ -308,6 +294,9 @@ class Pipe:
     def set_adelay(self, delay_ms: int) -> None:
         print("set_adelay", delay_ms, "ms")
         self.adelay = delay_ms * 1_000_000
+        self.set_state(False)
+        self.delay_pad.set_offset(self.adelay)
+        self.set_state(True)
 
     def on_eos(self, _bus: Gst.Bus, _msg: Gst.Message) -> None:
         print("End of stream")
