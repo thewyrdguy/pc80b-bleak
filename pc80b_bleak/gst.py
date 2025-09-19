@@ -238,15 +238,17 @@ class Pipe:
         # self.latee.link(self.labin)
 
         # Audio source
-        self.pl.add(alvl := Gst.ElementFactory.make("level", None))
-        alvl.link(self.latee)
-        self.delay_pad = alvl.get_static_pad("sink")
+        self.alvl = Gst.ElementFactory.make("level", None)
+        self.pl.add(self.alvl)
+        self.alvl.link(self.latee)
+        self.delay_pad = self.alvl.get_static_pad("sink")
         self.delay_pad.set_offset(self.adelay)
-        self.pl.add(delayq := Gst.ElementFactory.make("queue", None))
-        delayq.link(alvl)
+        self.delayq = Gst.ElementFactory.make("queue", None)
+        self.pl.add(self.delayq)
+        self.delayq.link(self.alvl)
         self.pl.add(acnv := Gst.ElementFactory.make("audioconvert", None))
         acnv.link_filtered(
-            delayq, Gst.Caps.from_string("audio/x-raw,channels=2")
+            self.delayq, Gst.Caps.from_string("audio/x-raw,channels=2")
         )
         self.pl.add(asrc := Gst.ElementFactory.make("autoaudiosrc", None))
         asrc.link(acnv)
@@ -295,7 +297,9 @@ class Pipe:
         print("set_adelay", delay_ms, "ms")
         self.adelay = delay_ms * 1_000_000
         self.set_state(False)
+        self.delayq.unlink(self.alvl)
         self.delay_pad.set_offset(self.adelay)
+        self.delayq.link(self.alvl)
         self.set_state(True)
 
     def on_eos(self, _bus: Gst.Bus, _msg: Gst.Message) -> None:
