@@ -9,10 +9,7 @@ dpkg-buildpackage $@
 # Output the filename
 cd ..
 filename=`ls *.deb | grep -v -- -dbgsym`
-dbgsym=`ls *.deb | grep -- -dbgsym`
-cat > $GITHUB_OUTPUT <<__END__
-filename=$filename
-filename-dbgsym=$dbgsym
-__END__
+# echo ::set-output name=filename::$filename  # deprecated way
+echo filename=$filename >> $GITHUB_OUTPUT
 # Move the built package into the Docker mounted workspace
-mv $filename $dbgsym workspace/
+mv $filename workspace/
