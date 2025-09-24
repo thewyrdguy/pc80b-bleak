@@ -9,7 +9,14 @@ Build-Depends: black,
                mypy,
                pylint,
                python3-all,
-               python3-setuptools
+               python3-setuptools,
+               python3-cairo,
+               python3-gi,
+               python3-gst-1.0,
+               gstreamer1.0-gtk4,
+               gstreamer1.0-plugins-bad,
+               python3-bleak,
+               python3-crcmod
 Standards-Version: 4.5.1
 X-Python-Version: >= 3.6
 Homepage: https://github.com/thewyrdguy/pc80b-bleak/
@@ -21,10 +28,12 @@ X-Description: Application to read and render realtime ECG
 Package: pc80b-bleak
 Architecture: any
 Section: python
-Depends: python3-gi,
+Depends: python3-cairo,
+         python3-gi,
          python3-gst-1.0,
          gstreamer1.0-gtk4,
          gstreamer1.0-plugins-bad,
+         python3-bleak,
          python3-crcmod,
          fonts-symbola,
          ${misc:Depends},

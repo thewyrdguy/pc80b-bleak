@@ -9,6 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 # pylint: disable=wrong-import-position
 
+# pylint: disable=no-name-in-module,fixme  # TODO: not found in docker image
 from gi.repository import (  # type: ignore [import-untyped]
     Adw,
     Gdk,
