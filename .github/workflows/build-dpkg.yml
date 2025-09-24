@@ -1,0 +1,27 @@
+---
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build Package
+        uses: thewyrdguy/pc80b-bleak/action-build-dpkg@HEAD
+        id: build
+        with:
+          args: --unsigned-source --unsigned-changes
+
+      - name: Upload Release
+        run: >
+          gh release create ${{ github.ref_name }}
+          ${{ steps.build.outputs.filename }}
+          ${{ steps.build.outputs.filename-dbgsym }}
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
+        shell: bash
