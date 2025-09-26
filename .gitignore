@@ -4,5 +4,6 @@ debian/*.substvars
 debian/files
 debian/pc80b-bleak/
 .pybuild
-build
+build/
+dist/
 pc80b_bleak.egg-info/

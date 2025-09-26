@@ -1,0 +1,19 @@
+[project]
+name = "pc80b-bleak"
+dynamic = ["version"]
+description = "Tool to live stream ECG from PC-80B with sound"
+authors = [
+    {name = "Peter Wyrd", email = "thewyrdguy@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = ["bleak", "gi", "cairo"]
+scripts = {pc80b-bleak = "pc80b_bleak.__main__:main"}
+license-files = ["debian/copyright"]
+
+[project.urls]
+Homepage = "https://www.github.com/thewyrdguy/pc80b-bleak"

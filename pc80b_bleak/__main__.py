@@ -6,7 +6,12 @@ from sys import argv
 # pylint: disable=relative-beyond-top-level  # Why is it complaining?...
 from .gui import App
 
-if __name__ == "__main__":
+
+def main() -> None:
+    """
+    This is silly, but to use pyproject's "scripts", entry point has to be
+    a function. So there.
+    """
     topts, args = getopt(argv[1:], "vt")
     opts = dict(topts)
     app = App(*args, **opts)
@@ -14,3 +19,7 @@ if __name__ == "__main__":
         app.run()
     except KeyboardInterrupt:
         app.quit()
+
+
+if __name__ == "__main__":
+    main()
