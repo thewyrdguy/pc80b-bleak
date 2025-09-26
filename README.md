@@ -6,6 +6,9 @@ from a microphone), and streams it to an RTMP server.
 Works with youtube, and should work with twitter/x, twitch, discord,
 and others.
 
+![PC-80B device](img/PC-80B-device.jpg "PC-80B device")
+![Screenshot](img/Software-screenshot.png "Screenshot")
+
 Uses Python bindings for GTK4 and Gstreamer.
 
 Note that the recorder must have "wireless" mode enabled
