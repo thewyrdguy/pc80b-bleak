@@ -1,5 +1,53 @@
-pc80b-bleak (0.01) UNRELEASED; urgency=medium
+pc80b-bleak (0.02) UNRELEASED; urgency=medium
+
+  * Add accurate mypy annotations
+  * Make timestamps relative
+  * Push model nearly works
+  * Setting ts .5 sec in the future seems prudent
+  * Delay spinbutton and "on/off air" vertical
+  * Adjust audio delay
+  * In the probe, must make gst buffer writable
+  * Include battery level and time from the device
+  * gst: make it work with newer python3-gst
+  * Draw time and heartrate on screen
+  * Reformat with newer black
+  * Buffer.writable is absent in older python3-gst
+  * move datetime to lower left
+  * When buffer.map is a context manager, __enter__()
+  * initialize datetime with now()
+  * Make tests pass pylint
+  * Pylint everything
+  * Mention audio in the README, comment drawing
+  * Draw grid on screen
+  * ble: don't crash on cancel (in one place)
+  * drw: draw more indicators, adjust font size
+  * Correct scale: 3 sec by +/- 2.5 mV
+  * Put labels on y axis
+  * Prepare some debianization
+  * reposition time display and battery indicator
+  * Implement blinking heart indicator
+  * Implemented all auxiliary indicators
+  * fix start script to use correct module name
+  * Display channel (internal/extenal) indicator too
+  * Add local audio monitor
+  * Try to move audio delay before audiomonitor
+  * Reduce delay for ecg trace, ignore "need data"
+  * Show assumed indicators for continuous data
+  * Move audio delay before level indicator
+  * Use ffmpeg's audio aac encoder
+  * Nicer indicators
+  * use pad.set_offset() instead of probe and buf.pts
+  * Revive audio delay controt (at least partly)
+  * Add github action to build deb package on tag push
+  * Add missing dependencies
+  * add py3dist-overrides
+  * try to output from docker build
+  * Enable build using pyproject
+
+ -- Peter Wyrd <thewyrdguy@gmail.com>  Fri, 26 Sep 2025 22:35:55 +0200
+
+pc80b-bleak (0.02) UNRELEASED; urgency=medium
 
   * Initial release
 
- -- Peter Wyrd <thewyrdguy@gmail.com>  Thu, 06 Mar 2025 22:53:00 +0100
+ -- Peter Wyrd <thewyrdguy@gmail.com>  Thu, 6 Mar 2025 22:41:52 +0100
