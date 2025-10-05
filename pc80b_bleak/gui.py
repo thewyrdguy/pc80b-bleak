@@ -128,6 +128,7 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
             "rtmp://abuser.cardiobasel.ch/stream/live",
             "rtmp://a.rtmp.youtube.com/live2",
             "rtmp://live.twitch.tv/app",
+            "rtmp://rtmp401.twitcasting.tv/live?key=",
         ):
             model.append((el,))
         completion = Gtk.EntryCompletion()
@@ -147,7 +148,7 @@ class AppWindow(Gtk.ApplicationWindow):  # type: ignore [misc] # no gtk stubs
         self.streamurl.set_icon_tooltip_markup(
             Gtk.EntryIconPosition.SECONDARY, "<b>Clear</b>"
         )
-        self.streamurl.set_max_length(48)
+        self.streamurl.set_max_length(64)
         self.streamurl.connect("icon-press", self.on_clear_icon_press)
         self.streamurl.connect("activate", self.on_textentry_activate)
         self.streamkey = Gtk.Entry()

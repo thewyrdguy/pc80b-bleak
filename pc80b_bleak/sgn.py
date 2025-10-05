@@ -17,7 +17,7 @@ gi.require_version("Gst", "1.0")
 # pylint: disable=wrong-import-position
 from gi.repository import Gst  # type: ignore [import-untyped]
 
-from .ble import Scanner, TestEvent
+from .src import Source
 from .datatypes import (
     Channel,
     Event,
@@ -51,7 +51,7 @@ class Signal:
     def __init__(self, crt_w: int, crt_h: int) -> None:
         self.crt_w = crt_w
         self.crt_h = crt_h
-        self.datathread: Optional[Scanner] = None
+        self.datathread: Optional[Source] = None
         self.status = (False, "Uninitialised")
         self.data = deque(repeat(0.0, VALS_ON_SCREEN), maxlen=VALS_ON_SCREEN)
         self.samppos = 0
@@ -66,22 +66,19 @@ class Signal:
         if self.datathread is not None:
             self.datathread.stop()
             self.datathread.join()
-        self.datathread = Scanner(self, test=state)
+        self.datathread = Source(self, test=state)
         self.datathread.start()
 
     def stop(self) -> None:
         if self.datathread is not None:
-            self.datathread.stop()
-            self.datathread.join()
+            self.datathread.stop()  # it joins
             self.datathread = None
 
     def report_status(self, receiving: bool, details: str) -> None:
         self.status = (receiving, details)
 
     def report_data(self, event: Event) -> None:
-        if isinstance(
-            event, (EventPc80bContData, EventPc80bFastData, TestEvent)
-        ):
+        if isinstance(event, (EventPc80bContData, EventPc80bFastData)):
             self.last_data = time_ns()
             if event.fin:
                 # clean up something? Change status?

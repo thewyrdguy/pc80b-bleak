@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 import asyncio
-from getopt import getopt  # pylint: disable=deprecated-module
-from sys import argv, stderr
+from asyncio.exceptions import CancelledError
+from sys import stderr
 from struct import pack, unpack
-from threading import Thread
 from time import time
-from typing import List, Tuple, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from bleak import BleakScanner, BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -15,12 +14,8 @@ from crcmod import predefined  # type: ignore [import-untyped]
 
 from .datatypes import (
     mkEv,
-    Event,
     EventPc80bContData,
     EventPc80bTransmode,
-    Channel,
-    MMode,
-    MStage,
 )
 
 if TYPE_CHECKING:
@@ -38,9 +33,6 @@ PC80B_NTD = "00002902-0000-1000-8000-00805f9b34fb"
 
 crc8 = predefined.mkCrcFun("crc-8-maxim")
 
-disconnect = asyncio.Event()
-task = None
-
 verbose = False
 
 
@@ -50,7 +42,6 @@ class Receiver:  # pylint: disable=too-few-public-methods
     def __init__(self, client: BleakClient, signal: Signal) -> None:
         self.length = 0
         self.buffer = b""
-        self.received = asyncio.Event()
         self.clientref = client
         self.signal = signal
         self.last_time = 0.0
@@ -67,7 +58,6 @@ class Receiver:  # pylint: disable=too-few-public-methods
             frame = self.buffer[: self.length]
             self.buffer = self.buffer[self.length :]
             self.length = 0
-            self.received.set()
             # print(len(frame), ":", frame.hex(), file=stderr)
             data = frame[:-1]
             crc = int.from_bytes(frame[-1:])
@@ -111,173 +101,110 @@ class Receiver:  # pylint: disable=too-few-public-methods
                 )
 
 
-def on_disconnect(client: BleakClient) -> None:
-    print("Disconnect callback", client)
-    disconnect.set()
+class BleSrc:
+    """Wrapper for cancellable async task"""
 
-
-async def scanner(signal: Signal) -> None:
-    global task  # pylint: disable=global-statement
-    task = asyncio.current_task()
-    try:
-        signal.report_status(False, "Scanning")
-        # pylint: disable=undefined-loop-variable
-        async with BleakScanner() as bscanner:
-            print("Waiting for PC80B-BLE device to appear...", file=stderr)
-            async for dev, data in bscanner.advertisement_data():
-                # print(dev, "\n", data, "\n", file=stderr)
-                if dev.name == "PC80B-BLE":
-                    # if PC80B_SRV in data.service_uuids:
-                    break
-        signal.report_status(False, f"Found {dev}")
-        print(
-            "Trying to use device",
-            dev,
-            "rssi",
-            data.rssi,
-            "wait",
-            DELAY,
-            "sec",
-            file=stderr,
-        )
-        await asyncio.sleep(DELAY)
-        try:
-            async with BleakClient(
-                dev, disconnected_callback=on_disconnect
-            ) as client:
-                # Disconnect callback may have been called in the duration
-                # of connecting and querying attributes. If we got here,
-                # it means that they should be ignored. True failure to
-                # connect is reported as TimeoutError execption, that we
-                # handle below. And disconnect that happens _after_ this
-                # point will really result in dropping out of the context.
-                disconnect.clear()
-
-                srvd = {srv.uuid: srv for srv in client.services}
-                # print("srvd", srvd, file=stderr)
-                details = ", ".join(
-                    [
-                        # pylint: disable=line-too-long
-                        f"{char.description.split()[0]}: "
-                        f"{(await client.read_gatt_char(char)).decode('ascii')}"
-                        for char in srvd[DEVINFO].characteristics
-                    ]
-                )
-                print("Connected;", details, file=stderr)
-                chrd = {
-                    char.uuid: char for char in srvd[PC80B_SRV].characteristics
-                }
-                # print("chrd", chrd, file=stderr)
-                ctlval = await client.read_gatt_char(PC80B_CTL)
-                # print("ctlval", ctlval.hex(), file=stderr)
-                ntf = chrd[PC80B_NTF]
-                # dscd = {
-                #     descriptor.uuid: descriptor
-                #     for descriptor in ntf.descriptors
-                # }
-                # ntdval = await client.read_gatt_descriptor(
-                #     dscd[PC80B_NTD].handle
-                # )
-                # print("ntdval", ntdval.hex(), file=stderr)
-                signal.report_status(True, f"Connected {dev} {details}")
-                print(
-                    "All controls are in place, ctl value",
-                    ctlval.hex(),
-                    file=stderr,
-                )
-                receiver = Receiver(client, signal)
-                await client.start_notify(ntf, receiver.receive)
-                # devinfo = bytes.fromhex("5a1106000000000000")
-                # crc = pack("B", crc8(devinfo))
-                # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
-                # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
-                try:
-                    await disconnect.wait()
-                except asyncio.exceptions.CancelledError:
-                    print("Cancelled")
-                signal.report_status(False, "Disconnected")
-                print("Disconnecting", file=stderr)
-        except TimeoutError:
-            print("Timeout connecting, retry")
-        print("Disconnected", file=stderr)
-    except asyncio.exceptions.CancelledError:
-        return
-
-
-class TestEvent(Event):
-    # pylint: disable=too-many-instance-attributes,too-few-public-methods
-    """Mock event for testing"""
-
-    ev = 0xFF
-
-    def __init__(self, floats: List[float]) -> None:
-        super().__init__(b"")
-        self.fin = False
-        self.seqNo = 0
-        self.hr = 0
-        self.gain = 0
-        self.channel = Channel.detecting
-        self.mmode = MMode.detecting
-        self.mstage = MStage.detecting
-        self.leadoff = True
-        self.datatype = 0
-        self.ecgFloats = floats
-
-
-async def testsrc(signal: Signal) -> None:
-    global task  # pylint: disable=global-statement
-    task = asyncio.current_task()
-    print("Launched test source")
-    signal.report_status(True, "Sending test ladder signal")
-    step = 0
-    try:
-        while True:
-            if step > 4:
-                step = 0
-            values = [step - 2.0 for i in range(25)]
-            signal.report_data(TestEvent(values))
-            step += 1
-            await asyncio.sleep(0.166666666)
-    except asyncio.exceptions.CancelledError:
-        return
-
-
-class Scanner(Thread):
-    """BLE scanning thread"""
-
-    def __init__(self, signal: Signal, test: bool) -> None:
-        super().__init__()
+    def __init__(self, signal: Signal) -> None:
         self.signal = signal
-        self.test = test
+        self.task: Optional[asyncio.Task[Any]] = None
+        self.disconnect = asyncio.Event()
+
+    def on_disconnect(self, client: BleakClient) -> None:
+        print("Disconnect callback", client)
+        self.disconnect.set()
+
+    async def _task(self) -> None:
+        self.task = asyncio.current_task()
+        try:
+            self.signal.report_status(False, "Scanning")
+            # pylint: disable=undefined-loop-variable
+            async with BleakScanner() as bscanner:
+                print("Waiting for PC80B-BLE device to appear...", file=stderr)
+                async for dev, _data in bscanner.advertisement_data():
+                    # print(dev, "\n", _data, "\n", file=stderr)
+                    if dev.name == "PC80B-BLE":
+                        # if PC80B_SRV in data.service_uuids:
+                        break
+            self.signal.report_status(False, f"Found {dev}")
+            await asyncio.sleep(DELAY)
+            self.signal.report_status(False, f"Connecting {dev}")
+            try:
+                async with BleakClient(
+                    dev, disconnected_callback=self.on_disconnect
+                ) as client:
+                    # Disconnect callback may have been called in the duration
+                    # of connecting and querying attributes. If we got here,
+                    # it means that they should be ignored. True failure to
+                    # connect is reported as TimeoutError execption, that we
+                    # handle below. And disconnect that happens _after_ this
+                    # point will really result in dropping out of the context.
+                    self.disconnect.clear()
+
+                    srvd = {srv.uuid: srv for srv in client.services}
+                    # print("srvd", srvd, file=stderr)
+                    details = ", ".join(
+                        [
+                            # pylint: disable=line-too-long
+                            f"{char.description.split()[0]}: "
+                            f"{(await client.read_gatt_char(char)).decode('ascii')}"
+                            for char in srvd[DEVINFO].characteristics
+                        ]
+                    )
+                    print("Connected;", details, file=stderr)
+                    chrd = {
+                        char.uuid: char
+                        for char in srvd[PC80B_SRV].characteristics
+                    }
+                    # print("chrd", chrd, file=stderr)
+                    ctlval = await client.read_gatt_char(PC80B_CTL)
+                    # print("ctlval", ctlval.hex(), file=stderr)
+                    ntf = chrd[PC80B_NTF]
+                    # dscd = {
+                    #     descriptor.uuid: descriptor
+                    #     for descriptor in ntf.descriptors
+                    # }
+                    # ntdval = await client.read_gatt_descriptor(
+                    #     dscd[PC80B_NTD].handle
+                    # )
+                    # print("ntdval", ntdval.hex(), file=stderr)
+                    self.signal.report_status(
+                        True, f"Connected {dev} {details}"
+                    )
+                    print(
+                        "All controls are in place, ctl value",
+                        ctlval.hex(),
+                        file=stderr,
+                    )
+                    receiver = Receiver(client, self.signal)
+                    await client.start_notify(ntf, receiver.receive)
+                    # devinfo = bytes.fromhex("5a1106000000000000")
+                    # crc = pack("B", crc8(devinfo))
+                    # print("SENDING:", devinfo.hex(), crc.hex(), file=stderr)
+                    # await client.write_gatt_char(PC80B_OUT, devinfo + crc)
+                    try:
+                        await self.disconnect.wait()
+                    except CancelledError:
+                        print("Cancelled while connected, request disconnect")
+                        await client.disconnect()
+                    self.signal.report_status(False, "Disconnected")
+                    print("Disconnecting", file=stderr)
+            except TimeoutError:
+                print("Timeout connecting, retry")
+            print("Disconnected", file=stderr)
+        except CancelledError:
+            print("Async task got cancelled")
+            self.task = None
+
+    # pylint: disable=duplicate-code
 
     def run(self) -> None:
-        asyncio.run((testsrc if self.test else scanner)(self.signal))
-        print("asyncio.run finished")
+        if self.task is None:
+            asyncio.run(self._task())
+        else:
+            print("Async task already running")
 
     def stop(self) -> None:
-        global task  # pylint: disable=global-statement
-        print("scanner stop called")
-        disconnect.set()
-        if task is not None:
-            task.cancel()
-            task = None
-
-
-if __name__ == "__main__":
-    topts, args = getopt(argv[1:], "hva:")
-    opts = dict(topts)
-    verbose = "-v" in opts
-
-    class PseudoSignal(Signal):  # pylint: disable=used-before-assignment
-        """Mock receiver for testing"""
-
-        def report_ble(self, connected: bool, sts: Tuple[int, str]) -> None:
-            print("report_ble", sts, "connected:", connected)
-
-        def report_ecg(self, ev: Event) -> None:
-            print("report_ecg", ev)
-
-    try:
-        asyncio.run(scanner(PseudoSignal(0, 0)))
-    except KeyboardInterrupt:
-        print("Exit", file=stderr)
+        if self.task is not None:
+            self.task.cancel()
+        else:
+            print("Trying to cancel non-running task")
