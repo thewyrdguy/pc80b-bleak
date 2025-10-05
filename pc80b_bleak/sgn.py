@@ -76,13 +76,14 @@ class Signal:
 
     def report_status(self, receiving: bool, details: str) -> None:
         self.status = (receiving, details)
+        if not receiving:
+            self.clearscreen(details)
 
     def report_data(self, event: Event) -> None:
         if isinstance(event, (EventPc80bContData, EventPc80bFastData)):
             self.last_data = time_ns()
             if event.fin:
-                # clean up something? Change status?
-                return
+                self.report_status(False, "Acquisition terminated, standby")
 
             fmeta = FrameMeta(
                 dtime=self.dtime,
@@ -137,19 +138,7 @@ class Signal:
         self.pipe = pipe
         self.drw = Drw(self.crt_w, self.crt_h, VALS_ON_SCREEN, VALS_PER_SEC)
 
-    def on_need_data(self, _source: Gst.Element, _amount: int) -> None:
-        # print(
-        #     "Need data, time",
-        #     time_ns(),
-        #     "source",
-        #     source.get_current_clock_time(),
-        #     "amount",
-        #     amount,
-        # )
-        if time_ns() - self.last_data < 1_000_000_000:
-            # print("ignore need_data")
-            return
-
+    def clearscreen(self, msg: str) -> None:
         with self.pipe.listmaker() as dispense:
             with dispense() as (mem, setts):
                 image = ImageSurface.create_for_data(
@@ -157,16 +146,16 @@ class Signal:
                 )
                 c = Context(image)
                 try:
-                    if self.status[0]:
-                        self.drw.drawcurve(
-                            c, FrameMeta(), repeat(0.0, VALS_ON_SCREEN), 0
-                        )
-                    else:
-                        self.drw.clearscreen(c, self.status[1])
+                    self.drw.clearscreen(c, msg)
                 finally:
                     del c
                     del image
                 setts(FRAMEDUR, 0)
+
+    def on_need_data(self, _source: Gst.Element, _amount: int) -> None:
+        if not self.status[0]:
+            self.clearscreen(self.status[1])
+        # During acquisition, ignore need_data events
 
     def on_enough_data(self, _source: Gst.Element) -> None:
         print("Uh-oh, got 'enough-data'")
