@@ -5,7 +5,7 @@ from inspect import isclass
 from sys import stderr
 from struct import error, unpack
 from datetime import datetime
-from typing import ClassVar, Dict, List, Type
+from typing import Any, ClassVar, Dict, List, Optional, Type
 
 # pylint: disable=missing-class-docstring,too-few-public-methods,too-many-instance-attributes
 
@@ -33,15 +33,19 @@ class MStage(Enum):
 
 class Event:
     ev: ClassVar[int]
-    data: bytes = b""
+    data: Optional[bytes] = None
 
-    def __init__(self, data: bytes) -> None:
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
         self.data = data
+        if data is None:
+            for k, v in kwargs.items():
+                setattr(self, k, v)
 
     def __repr__(self) -> str:
         return (
             f"""{self.__class__.__name__}(0x{self.ev:02x}:"""
-            f"""{self.data.hex()[:16]} {', '.join(
+            f"""{'None' if self.data is None else self.data.hex()[:16]} {
+                 ', '.join(
                 f'{k}={len(v) if isinstance(v,list) else v}'
                 for k, v in self.__dict__.items()
                 if not (k == 'data' or k.startswith('__')))})"""
@@ -51,9 +55,11 @@ class Event:
 class EventPc80bDeviceInfo(Event):
     ev = 0x11
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(data)
-        size = len(data)
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
+        super().__init__(data, **kwargs)
+        if data is None:
+            return
+        size = len(data, **kwargs)
         if size == 6:
             self.softwareV = ".".join(str(e) for e in data[:4])  # c
         elif size == 8:
@@ -71,8 +77,10 @@ class EventPc80bDeviceInfo(Event):
 class EventPc80bTime(Event):
     ev = 0x33  # Not sure. It should be time?
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(data)
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
+        super().__init__(data, **kwargs)
+        if data is None:
+            return
         self.sc, self.mn, self.hr, self.dy, self.mo, self.yr, self.z = unpack(
             "<BBBBBHB", data[:8]
         )
@@ -91,8 +99,10 @@ class EventPc80bTime(Event):
 class EventPc80bTransmode(Event):
     ev = 0x55  # end of preparation, need response
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(data)
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
+        super().__init__(data, **kwargs)
+        if data is None:
+            return
         devtyp, modes = unpack("<BB", data[:2])
         self.model = {10: "PC-80A", 11: "PC-80B", 128: "PC-80B(UW)"}.get(
             devtyp, "<unknown>"
@@ -105,17 +115,19 @@ class EventPc80bTransmode(Event):
 class EventPc80bContData(Event):
     ev = 0xAA
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(data)
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
+        super().__init__(data, **kwargs)
+        if data is None:
+            return
         self.seqNo = data[0]
-        if len(data) == 1:
+        if len(data, **kwargs) == 1:
             self.fin = True
             return
         self.fin = False
         try:
             bv, self.hr, vl, lgv = unpack("<50sBBB", data[1:])
         except error:
-            print("LEN", len(data), "DATA", data.hex(), file=stderr)
+            print("LEN", len(data, **kwargs), "DATA", data.hex(), file=stderr)
             return
         self.leadoff = bool(lgv >> 7)
         self.gain = (lgv & 0x70) >> 4
@@ -132,8 +144,10 @@ class EventPc80bContData(Event):
 class EventPc80bFastData(Event):
     ev = 0xDD
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(data)
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
+        super().__init__(data, **kwargs)
+        if data is None:
+            return
         self.fin = False
         self.seqNo, xgain, cmsh, self.hr, ldt = unpack("<HBBBB", data[:6])
         #    0, 1    2      3         4    5
@@ -160,8 +174,10 @@ class EventPc80bFastData(Event):
 class EventPc80bHeartbeat(Event):
     ev = 0xFF
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(data)
+    def __init__(self, data: Optional[bytes], **kwargs: Any) -> None:
+        super().__init__(data, **kwargs)
+        if data is None:
+            return
         self.batt = data[0]
 
     def __repr__(self) -> str:
