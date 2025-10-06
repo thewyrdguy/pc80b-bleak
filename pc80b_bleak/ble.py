@@ -201,7 +201,10 @@ class BleSrc:
                             await self.disconnect.wait()
                         except CancelledError:
                             print("Async task cancelled while connected")
-                            await client.disconnect()
+                            try:
+                                await client.disconnect()
+                            except EOFError:
+                                print("Ignoring EOFError")
                             raise
                         print("Disconnected", file=stderr)
                         self.signal.report_status(False, "Disconnected")
