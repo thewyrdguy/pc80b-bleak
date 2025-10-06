@@ -1,4 +1,4 @@
-pc80b-bleak (0.02) UNRELEASED; urgency=medium
+pc80b-bleak (1.0) UNRELEASED; urgency=medium
 
   * Add accurate mypy annotations
   * Make timestamps relative
@@ -43,8 +43,16 @@ pc80b-bleak (0.02) UNRELEASED; urgency=medium
   * add py3dist-overrides
   * try to output from docker build
   * Enable build using pyproject
+  * Add pictures to the README
+  * Rearrange structure around signal source
+  * Better test display
+  * Better state transitions
+  * ble: disconnect and terminate gracefully on cancel
+  * tst: produce more diverse data for indicators
+  * ble: ignore EOFError on disconnect
+  * packge build: explicit module name
 
- -- Peter Wyrd <thewyrdguy@gmail.com>  Fri, 26 Sep 2025 22:35:55 +0200
+ -- Peter Wyrd <thewyrdguy@gmail.com>  Tue, 07 Oct 2025 00:11:32 +0200
 
 pc80b-bleak (0.02) UNRELEASED; urgency=medium
 
