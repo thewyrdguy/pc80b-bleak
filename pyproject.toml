@@ -17,3 +17,6 @@ license-files = ["debian/copyright"]
 
 [project.urls]
 Homepage = "https://www.github.com/thewyrdguy/pc80b-bleak"
+
+[tool.setuptools]
+packages = ["pc80b_bleak"]
