@@ -8,8 +8,12 @@ from typing import Any, Generator, Optional, Tuple, TYPE_CHECKING
 
 from .datatypes import (
     EventPc80bContData,
+    EventPc80bFastData,
     EventPc80bTime,
     EventPc80bHeartbeat,
+    Channel,
+    MMode,
+    MStage,
 )
 from .sample import sample
 
@@ -52,12 +56,27 @@ class TestSrc:
                 values = next(give25)
                 # print(step, values)
                 self.signal.report_data(
-                    EventPc80bContData(
+                    EventPc80bFastData(
+                        None,
+                        seqNo=step,
+                        fin=False,
+                        hr=0,
+                        channel=Channel((step // 10) % 3),
+                        mmode=MMode((step // 10) % 3),
+                        mstage=MStage((step // 10) % 6),
+                        leadoff=False,
+                        datatype=(step // 10) % 8,
+                        gain=0,
+                        vol=0,
+                        ecgFloats=list(values),
+                    )
+                    if step < 60
+                    else EventPc80bContData(
                         None,
                         seqNo=step,
                         fin=False,
                         hr=(step // 20) * 40,
-                        leadoff=step > 60,
+                        leadoff=step > 90,
                         gain=0,
                         vol=0,
                         ecgFloats=list(values),
