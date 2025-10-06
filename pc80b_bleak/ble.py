@@ -197,7 +197,12 @@ class BleSrc:
                         #       file=stderr)
                         # await client.write_gatt_char(PC80B_OUT,
                         #                              devinfo + crc)
-                        await self.disconnect.wait()
+                        try:
+                            await self.disconnect.wait()
+                        except CancelledError:
+                            print("Async task cancelled while connected")
+                            await client.disconnect()
+                            raise
                         print("Disconnected", file=stderr)
                         self.signal.report_status(False, "Disconnected")
                 except TimeoutError:
