@@ -139,7 +139,9 @@ class Pipe:
         self.pool = Gst.BufferPool()
         bufsize = crt_w * crt_h * 4  # for FORMAT_ARGB32
         bpconf = self.pool.get_config()
-        self.pool.config_set_params(bpconf, None, bufsize, POOLSIZE, POOLSIZE)
+        Gst.BufferPool.config_set_params(
+            bpconf, None, bufsize, POOLSIZE, POOLSIZE
+        )
         self.pool.set_config(bpconf)
         if not self.pool.set_active(True):
             raise RuntimeError("Could not activate buffer pool")
